@@ -5,7 +5,6 @@ from abc import ABCMeta, abstractmethod
 from functools import reduce
 import operator
 import math
-import numpy as np
 import pandas as pd
 from Dataset import WaterMelonDataset
 
@@ -22,18 +21,24 @@ class BaseNaiveBayes(metaclass=ABCMeta):
         self.likelihood = {}
 
     @staticmethod
-    def indicator_function(**kwargs):
-        y = kwargs.get('y')
-        cls = kwargs.get('cls')
-        x = kwargs.get('x')
-        feature = kwargs.get('feature')
-        return 1 if y == cls and x == feature else 0
+    def indicator_function(*args):
+        """
+        indicator_function takes at least one tuples, of each consists two
+        values for comparison
+        :param args: tuple of two values
+        :return: if values within each tuple equal to each other, return 1,
+                 0 otherwise
+        """
+        for value_set in args:
+            if value_set[0] != value_set[1]:
+                return 0
+        return 1
 
     def _compute_prior_possibility(self, y_train):
         for cls in self.classes:
             self.prior_possibility[cls] = \
-                (sum(self.indicator_function(y=y, cls=cls)
-                    for y in y_train) + self.alpha) / (len(y_train) + self.alpha * len(self.classes))
+                (sum(self.indicator_function((y, cls)) for y in y_train)
+                 + self.alpha) / (len(y_train) + self.alpha * len(self.classes))
 
     @abstractmethod
     def _compute_likelihood(self, x_train, y_train):
@@ -58,7 +63,8 @@ class BaseNaiveBayes(metaclass=ABCMeta):
         for cls in self.classes:
             # In Python 3.8, simply use use math.prod() instead
             possibility[cls] = self.prior_possibility[cls] * \
-                               prod(self.likelihood[i][cls](x[i]) for i in range(len(x)))
+                               prod(self.likelihood[i][cls](x[i])
+                                    for i in range(len(x)))
         print(possibility)
         return max(possibility, key=possibility.get)
 
@@ -90,10 +96,10 @@ class MultinomialNB(BaseNaiveBayes):
         def compute_likelihood_4_multinomial_feature(feature_train, y_train, cls):
             def multinomial_possibility(feature_value):
                 return \
-                    (sum(self.indicator_function(x=x, feature=feature_value,
-                                                y=y, cls=cls) for x, y in zip(feature_train, y_train)) + self.alpha) / \
-                    (sum(self.indicator_function(y=y, cls=cls) for y in y_train) + self.alpha * len(set(feature_train)))
-                return t
+                    (sum(self.indicator_function((x, feature_value),(y, cls))
+                         for x, y in zip(feature_train, y_train)) + self.alpha) / \
+                    (sum(self.indicator_function((y, cls)) for y in y_train)
+                     + self.alpha * len(set(feature_train)))
             return multinomial_possibility
         for cls in self.classes:
             for feature in range(x_train.shape[1]):
@@ -104,7 +110,19 @@ class MultinomialNB(BaseNaiveBayes):
 
 class BernoulliNB(BaseNaiveBayes):
     def _compute_likelihood(self, x_train, y_train):
-        pass
+        def compute_likelihood_4_bernoulli_feature(feature_train, y_train, cls):
+            def bernoulli_possibility(feature_value):
+                return \
+                    (sum(self.indicator_function((x, feature_value),(y, cls))
+                         for x, y in zip(feature_train, y_train)) + self.alpha) / \
+                    (sum(self.indicator_function((y, cls)) for y in y_train)
+                     + self.alpha * len(set(feature_train)))
+            return bernoulli_possibility
+        for cls in self.classes:
+            for feature in range(x_train.shape[1]):
+                self.likelihood[feature][cls] = \
+                    compute_likelihood_4_bernoulli_feature(
+                        x_train[:, feature], y_train, cls)
 
 
 class NaiveBayes(BaseNaiveBayes):
@@ -113,11 +131,21 @@ class NaiveBayes(BaseNaiveBayes):
             nb_model = nb_model_cls(alpha=self.alpha)
             feature_train = x_train[:, features]
             nb_model.fit(feature_train, y_train)
-            for feature, likelihood in zip(features, nb_model.likelihood.values()):
-                self.likelihood[feature] = likelihood
+            for feature, feature_likelihood in \
+                    zip(features, nb_model.likelihood.values()):
+                self.likelihood[feature] = feature_likelihood
             print(self.likelihood)
 
 
-nb = NaiveBayes(alpha=0)
-nb.fit(WATERMELON_DATASET.data, WATERMELON_DATASET.target, feature_distributions=[(GaussianNB, [6, 7]), (MultinomialNB, [0, 1, 2, 3, 4, 5])])
-nb.predict(['青绿', '蜷缩', '浊响', '清晰', '凹陷', '硬滑', 0.697, 0.460])
+if __name__ == "__main__":
+    nb = NaiveBayes(alpha=0)
+    nb.fit(WATERMELON_DATASET.data, WATERMELON_DATASET.target,
+           feature_distributions=[(GaussianNB, [6, 7]),
+                                  (MultinomialNB, [0, 1, 2, 3, 4, 5])])
+    nb.predict(['青绿', '蜷缩', '浊响', '清晰', '凹陷', '硬滑', 0.697, 0.460])
+    bnb = BernoulliNB()
+    import numpy as np
+    X = np.random.randint(2, size=(6, 100))
+    Y = np.array([1, 2, 3, 4, 4, 5])
+    bnb.fit(X, Y)
+    print(bnb.predict(X[2]))
