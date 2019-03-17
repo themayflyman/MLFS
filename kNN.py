@@ -117,10 +117,10 @@ class NearerPoint:
         self._distance_2_search_point = distance_2_search_point
 
     @property
-    def distance_to_search_point(self):
+    def distance_2_search_point(self):
         return self._distance_2_search_point
 
-    @distance_to_search_point.setter
+    @distance_2_search_point.setter
     def distance_2_search_point(self, distance):
         self._distance_2_search_point = distance
 
