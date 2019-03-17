@@ -96,10 +96,10 @@ class MultinomialNB(BaseNaiveBayes):
         def compute_likelihood_4_multinomial_feature(feature_train, y_train, cls):
             def multinomial_possibility(feature_value):
                 return \
-                    (sum(self.indicator_function((x, feature_value),(y, cls))
-                         for x, y in zip(feature_train, y_train)) + self.alpha) / \
-                    (sum(self.indicator_function((y, cls)) for y in y_train)
-                     + self.alpha * len(set(feature_train)))
+                    (sum(self.indicator_function((x, feature_value), (y, cls))
+                         for x, y in zip(feature_train, y_train)) + self.alpha)\
+                    / (sum(self.indicator_function((y, cls)) for y in y_train)
+                       + self.alpha * len(set(feature_train)))
             return multinomial_possibility
         for cls in self.classes:
             for feature in range(x_train.shape[1]):
