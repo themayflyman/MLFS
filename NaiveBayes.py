@@ -17,7 +17,7 @@ class BaseNaiveBayes(metaclass=ABCMeta):
         self.alpha = alpha
         self.classes = []
         self.feature_distributions = None
-        self.prior_possibility = {}
+        self.prior_probability = {}
         self.likelihood = {}
 
     @staticmethod
@@ -34,9 +34,9 @@ class BaseNaiveBayes(metaclass=ABCMeta):
                 return 0
         return 1
 
-    def _compute_prior_possibility(self, y_train):
+    def _compute_prior_probability(self, y_train):
         for cls in self.classes:
-            self.prior_possibility[cls] = \
+            self.prior_probability[cls] = \
                 (sum(self.indicator_function((y, cls)) for y in y_train)
                  + self.alpha) / (len(y_train) + self.alpha * len(self.classes))
 
@@ -47,10 +47,10 @@ class BaseNaiveBayes(metaclass=ABCMeta):
     def fit(self, x_train, y_train, feature_distributions=None):
         self.feature_distributions = feature_distributions
         self.classes = set(y_train)
-        self.prior_possibility.fromkeys(self.classes)
+        self.prior_probability.fromkeys(self.classes)
         self.likelihood = (dict((feature, dict.fromkeys(self.classes))
                                 for feature in range(x_train.shape[1])))
-        self._compute_prior_possibility(y_train)
+        self._compute_prior_probability(y_train)
         self._compute_likelihood(x_train, y_train)
 
     def predict(self, x):
@@ -59,14 +59,14 @@ class BaseNaiveBayes(metaclass=ABCMeta):
         def prod(iterable):
             return reduce(operator.mul, iterable, 1)
 
-        possibility = dict().fromkeys(self.classes)
+        probability = dict().fromkeys(self.classes)
         for cls in self.classes:
             # In Python 3.8, simply use use math.prod() instead
-            possibility[cls] = self.prior_possibility[cls] * \
+            probability[cls] = self.prior_probability[cls] * \
                                prod(self.likelihood[i][cls](x[i])
                                     for i in range(len(x)))
-        print(possibility)
-        return max(possibility, key=possibility.get)
+        print(probability)
+        return max(probability, key=probability.get)
 
 
 class GaussianNB(BaseNaiveBayes):
@@ -94,13 +94,13 @@ class GaussianNB(BaseNaiveBayes):
 class MultinomialNB(BaseNaiveBayes):
     def _compute_likelihood(self, x_train, y_train):
         def compute_likelihood_4_multinomial_feature(feature_train, y_train, cls):
-            def multinomial_possibility(feature_value):
+            def multinomial_probability(feature_value):
                 return \
                     (sum(self.indicator_function((x, feature_value), (y, cls))
                          for x, y in zip(feature_train, y_train)) + self.alpha)\
                     / (sum(self.indicator_function((y, cls)) for y in y_train)
                        + self.alpha * len(set(feature_train)))
-            return multinomial_possibility
+            return multinomial_probability
         for cls in self.classes:
             for feature in range(x_train.shape[1]):
                 self.likelihood[feature][cls] = \
@@ -111,13 +111,13 @@ class MultinomialNB(BaseNaiveBayes):
 class BernoulliNB(BaseNaiveBayes):
     def _compute_likelihood(self, x_train, y_train):
         def compute_likelihood_4_bernoulli_feature(feature_train, y_train, cls):
-            def bernoulli_possibility(feature_value):
+            def bernoulli_probability(feature_value):
                 return \
                     (sum(self.indicator_function((x, feature_value), (y, cls))
                          for x, y in zip(feature_train, y_train)) + self.alpha)\
                     / (sum(self.indicator_function((y, cls)) for y in y_train)
                        + self.alpha * len(set(feature_train)))
-            return bernoulli_possibility
+            return bernoulli_probability
         for cls in self.classes:
             for feature in range(x_train.shape[1]):
                 self.likelihood[feature][cls] = \
