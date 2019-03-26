@@ -5,7 +5,6 @@ import math
 from math import log2
 from collections import Counter
 import numpy as np
-import pandas as pd
 from Dataset import WaterMelonDataset, LoanApplierDataset
 
 
@@ -14,10 +13,13 @@ LOAN_APPLIER_DATASET = LoanApplierDataset()
 
 
 class DecisionTreeNode:
-    def __init__(self, feature_label=None, cls_label=None):
+    def __init__(self, x_train=None, y_train=None,
+                 feature_label=None, cls_label=None):
         self._feature_label = feature_label
         self._cls_label = cls_label
-        self.nodes = {}
+        self.x_train = x_train
+        self.y_train = y_train
+        self.child_nodes = {}
 
     @property
     def feature_label(self):
@@ -35,21 +37,32 @@ class DecisionTreeNode:
     def cls_label(self, cls_label):
         self._cls_label = cls_label
 
-    def insert_node(self, feature_value, node):
-        pass
+    def insert_child_node(self, feature_value, node):
+        self.child_nodes[feature_value] = node
 
-    def remove_node(self, node):
-        pass
+    @classmethod
+    def prune_transform(cls, decision_tree_node):
+        # prune
+        decision_tree_node.child_nodes = {}
+        # transform the node into a leaf node
+        cls_of_max_instances = max(Counter(decision_tree_node.y_train))
+        decision_tree_node.cls_label = cls_of_max_instances
+        decision_tree_node.feature_label = None
 
     def decide(self, x):
-        pass
+        return self.cls_label if self.cls_label else \
+            self.child_nodes[x[self.feature_label]].decide(x)
 
 
 class DecisionTree:
-    def __init__(self, epsilon=0.01, criterion="information gain"):
+    def __init__(self, alpha=0.1, epsilon=0.01, criterion="information gain",
+                 if_prune=True):
+        self.alpha = alpha
         self.epsilon = epsilon
         self.criterion = criterion
-        self.root_node = DecisionTreeNode()
+        self.if_prune = if_prune
+        self.root_node = None
+        self._leaf_nodes = []
 
     def compute_empirical_entropy(self, y_train):
         return -sum(
@@ -73,6 +86,8 @@ class DecisionTree:
                    for feature in set(feature_train)
                )
 
+    # Information gain measures how much "information" a feature gives us about
+    # the class.
     def compute_information_gain(self, A, D):
         return self.compute_empirical_entropy(D) - \
                self.compute_empirical_conditional_entropy(A, D)
@@ -81,62 +96,106 @@ class DecisionTree:
         return self.compute_information_gain(A, D) / \
                self.compute_empirical_entropy(D)
 
-    def compute_gini_index(self):
-        pass
+    def compute_criterion(self, x_train, y_train):
+        if self.criterion == "information gain":  # ID3 Algorithm
+            return self.compute_information_gain(x_train, y_train)
+        elif self.criterion == "information gain ratio":  # C4.5 Algorithm
+            return self.compute_information_gain_ratio(x_train, y_train)
+
+    def cost_function(self, leaf_nodes):
+        return sum(len(leaf_node.y_train) *
+                   self.compute_empirical_entropy(leaf_node.y_train)
+                   for leaf_node in leaf_nodes) + \
+            self.alpha * len(leaf_nodes)
 
     def _construct(self, decision_tree_node, x_train, y_train, feature_labels):
         classes = set(y_train)
-        # If all cases in dataset belong to a single class
+        # If all samples in dataset belong to a single class
         if len(classes) == 1:
             decision_tree_node.cls_label = classes.pop()
-        # If there's no more feature left
+        # If there's no more feature left to construct the tree
         elif not feature_labels:
             cls_of_max_instances = max(Counter(y_train))
             decision_tree_node.cls_label = cls_of_max_instances
         else:
-            information_gain = dict.fromkeys(feature_labels)
+            criterion = dict.fromkeys(feature_labels)
             for feature_label in feature_labels:
-                information_gain[feature_label] = \
-                    self.compute_information_gain(x_train[:, feature_label],
-                                                  y_train)
-            feature_label_with_max_information_gain = max(information_gain)
-            if information_gain[feature_label_with_max_information_gain] < \
-                    self.epsilon:
+                criterion[feature_label] = \
+                    self.compute_criterion(x_train[:, feature_label], y_train)
+            feature_label_with_max_criterion = max(criterion, key=criterion.get)
+            if criterion[feature_label_with_max_criterion] < self.epsilon:
                 cls_of_max_instances = max(Counter(y_train))
                 decision_tree_node.cls_label = cls_of_max_instances
             else:
-                feature_labels.remove(feature_label_with_max_information_gain)
-                feature_values = \
-                    set(x_train[:, feature_label_with_max_information_gain])
+                feature_labels.remove(feature_label_with_max_criterion)
+                decision_tree_node.feature_label = \
+                    feature_label_with_max_criterion
+                feature_values = set(x_train[:, feature_label_with_max_criterion])
                 for feature_value in feature_values:
-                    next_decision_tree_node = DecisionTreeNode()
-                    decision_tree_node.insert_node(
+                    train_data = np.column_stack([x_train, y_train])
+                    x_split = train_data[train_data[:, feature_label_with_max_criterion] == feature_value][:, :-1]
+                    y_split = train_data[train_data[:, feature_label_with_max_criterion] == feature_value][:, -1]
+                    child_decision_tree_node = \
+                        DecisionTreeNode(x_train=x_split, y_train=y_split)
+                    decision_tree_node.insert_child_node(
                         feature_value,
                         self._construct(
-                            next_decision_tree_node,
-                            x_train,
-                            y_train,
+                            child_decision_tree_node,
+                            x_split,
+                            y_split,
                             feature_labels
                         )
                     )
 
         return decision_tree_node
 
-    def _prune(self):
-        pass
+    @property
+    def leaf_nodes(self):
+        return self._leaf_nodes
+
+    def find_leaf_nodes(self):
+        leaf_nodes = []
+        self._find_leaf_nodes(self.root_node, leaf_nodes)
+        return leaf_nodes
+
+    def _find_leaf_nodes(self, decision_tree, leaf_nodes):
+        for child_node in decision_tree.child_nodes:
+            if child_node.child_nodes:
+                leaf_nodes += self._find_leaf_nodes(child_node, leaf_nodes)
+            else:
+                self._leaf_nodes += child_node.values()
+
+    def _post_prune(self, decision_tree_node):
+        # HACK: Dynamic programming
+        if decision_tree_node.child_nodes:
+            for child_node in decision_tree_node.child_nodes.values():
+                self._post_prune(child_node)
+        leaf_nodes_before_pruning = self.find_leaf_nodes()
+        leaf_nodes_after_pruning = [
+            leaf_node for leaf_node in self._leaf_nodes
+            if leaf_node not in decision_tree_node.child_nodes.values()
+        ] + [decision_tree_node]
+        cost_before_pruning = self.cost_function(leaf_nodes_before_pruning)
+        cost_after_pruning = self.cost_function(leaf_nodes_after_pruning)
+        if cost_after_pruning < cost_before_pruning:
+            DecisionTreeNode.prune_transform(decision_tree_node)
+
+    def post_prune(self):
+        self._post_prune(self.root_node)
 
     def fit(self, x_train, y_train):
-
+        self.root_node = DecisionTreeNode(x_train=x_train, y_train=y_train)
         self._construct(decision_tree_node=self.root_node,
                         x_train=x_train,
                         y_train=y_train,
                         feature_labels=list(range(x_train.shape[1])))
-        self._prune()
+        self._find_leaf_nodes(self.root_node)
+        if self.if_prune:
+            self.post_prune()
 
     def predict(self, x):
-        pass
+        return self.root_node.decide(x)
 
 
 d = DecisionTree()
 d.fit(LOAN_APPLIER_DATASET.data, LOAN_APPLIER_DATASET.target)
-print(d.root_node.nodes)
