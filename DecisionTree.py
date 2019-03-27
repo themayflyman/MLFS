@@ -169,16 +169,25 @@ class DecisionTree:
         # HACK: Dynamic programming
         if decision_tree_node.child_nodes:
             for child_node in decision_tree_node.child_nodes.values():
-                self._post_prune(child_node)
+                if_prune = self._post_prune(child_node)
+                if not if_prune:
+                    return False
+        # Find all leaf nodes before pruning
         leaf_nodes_before_pruning = self.find_leaf_nodes()
+        # Assume we pruned the branches, the leaf nodes would be left
         leaf_nodes_after_pruning = [
             leaf_node for leaf_node in self._leaf_nodes
             if leaf_node not in decision_tree_node.child_nodes.values()
         ] + [decision_tree_node]
+        # Compute the cost before and after the pruning
         cost_before_pruning = self.cost_function(leaf_nodes_before_pruning)
         cost_after_pruning = self.cost_function(leaf_nodes_after_pruning)
         if cost_after_pruning < cost_before_pruning:
+            # prune if the cost is less than the cost after the pruning
             DecisionTreeNode.prune_transform(decision_tree_node)
+            return True
+        else:
+            return False
 
     def post_prune(self):
         self._post_prune(self.root_node)
@@ -199,3 +208,4 @@ class DecisionTree:
 
 d = DecisionTree()
 d.fit(LOAN_APPLIER_DATASET.data, LOAN_APPLIER_DATASET.target)
+d.post_prune()
