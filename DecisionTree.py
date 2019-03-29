@@ -151,7 +151,7 @@ class DecisionTree:
 
     @property
     def leaf_nodes(self):
-        return self._leaf_nodes
+        return self.find_leaf_nodes()
 
     def find_leaf_nodes(self):
         leaf_nodes = []
@@ -200,7 +200,9 @@ class DecisionTree:
     def predict(self, x):
         return self.root_node.decide(x)
 
+    @classmethod
+    def test(cls):
+        decision_tree = cls()
+        decision_tree.fit(LOAN_APPLIER_DATASET.data,
+                          LOAN_APPLIER_DATASET.target)
 
-d = DecisionTree()
-d.fit(LOAN_APPLIER_DATASET.data, LOAN_APPLIER_DATASET.target)
-d.post_prune()
