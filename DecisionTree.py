@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # -*- encoding: utf8 -*-
 
-import math
 from math import log2
 from collections import Counter
 import numpy as np
