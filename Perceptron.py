@@ -101,7 +101,6 @@ class Perceptron:
         plt.ylabel('sepal width')
         plt.legend()
         plt.show()
-        cls.fit()
 
 
 if __name__ == "__main__":
