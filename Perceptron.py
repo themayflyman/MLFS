@@ -3,9 +3,8 @@
 
 import pandas as pd
 import numpy as np
-from sklearn.datasets import load_iris
 import matplotlib.pyplot as plt
-from Optimizer import Optimizer
+from Optimizer import GradientDescentOptimizer
 from Dataset import IrisDataset
 
 
@@ -54,12 +53,18 @@ class Perceptron:
         self.w = np.ones(x_train.shape[1])
         all_correct = False
         iteration = 0
+        opt = GradientDescentOptimizer()
         while not all_correct and iteration < self.max_iteration:
             wrong_count = 0
             for (x, y) in zip(x_train, y_train):
                 if self._functional_margin(x, y) <= 0:
-                    self.w, self.b = Optimizer.gradient_descent(self.learning_rate,
-                                                                x, y, self.w, self.b)
+                    grad_dict = opt.compute_gradient(
+                        self.sign,
+                        params={'x': x, 'y': y, 'w': self.w, 'b': self.b},
+                        param_list=['w', 'b']
+                    )
+                    self.w -= self.learning_rate * grad_dict['w']
+                    self.b -= self.learning_rate * grad_dict['b']
                     wrong_count += 1
             if wrong_count == 0:
                 all_correct = True
@@ -67,7 +72,7 @@ class Perceptron:
 
     def predict(self, x):
         y = self.sign(x, self.w, self.b)
-        if y > 0:
+        if y > 0.5:
             return 1
         else:
             return -1
