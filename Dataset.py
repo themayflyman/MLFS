@@ -42,8 +42,7 @@ class Dataset(metaclass=ABCMeta):
     def columns(self, columns):
         if self._dataset[0]:
             if len(columns) != len(self._dataset[0]) - 1:
-                # TODO: polish the error message
-                raise ValueError("columns must have same length")
+                raise ValueError("wrong length of the columns")
         self._columns = columns
 
     def _init_columns(self):
@@ -58,7 +57,7 @@ class Dataset(metaclass=ABCMeta):
         if self._dataset[0]:
             if len(feature_names) != len(self._dataset[0]) - 1:
                 # TODO: polish the error message
-                raise ValueError("columns must have same length")
+                raise ValueError("wrong length of the columns")
         self._feature_names = feature_names
 
     @abstractmethod
