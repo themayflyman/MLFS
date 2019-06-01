@@ -3,8 +3,8 @@
 
 import math
 import itertools
-import numpy as np
 from Dataset import IrisDataset
+from Optimizer import newton_raphson_method
 
 IRIS_DATASET = IrisDataset()
 EPSILON = 0.00001
@@ -20,6 +20,7 @@ def feature_func_example(feature, cls):
 
 
 # TODO: detailed notes
+# TODO: Gaussian Prior Smoothing
 class MaxEntropyClassifier:
     """introduction of this Max Entropy Classifier class*
 
@@ -41,6 +42,11 @@ class MaxEntropyClassifier:
 
     """
     def __init__(self, x_train, y_train, **kwargs):
+        self.max_iteration = kwargs.get("max_iteration", 200)
+        self.classes = kwargs.get("classes", set(y_train))
+        self.weights = kwargs.get("weights",
+                                  dict().fromkeys(self.Features, 0))
+
         self.train_set = list(zip(x_train, y_train))
         self.train_set_num = sum(1 for _ in self.train_set)  # len(train_set)
         # functions that extracts feature
@@ -53,13 +59,8 @@ class MaxEntropyClassifier:
                                                  for cls in self.classes))
                                            for feature in self.features))
         self.feature_funcs = self.feature_funcs_example
-
-        self.max_iteration = kwargs.get("max_iteration", 200)
-        self.classes = kwargs.get("classes", set(y_train))
         self.Features = set(list(itertools.product(self.features,
                                                    self.classes)))
-        self.weights = kwargs.get("weights",
-                                  dict().fromkeys(self.Features, 0))
 
     @property
     def max_iteration(self):
@@ -99,7 +100,10 @@ class MaxEntropyClassifier:
         return empirical_fcfreq
 
     def _compute_empirical_expectation(self):
-        return sum([self.empirical_fcproba[feature][cls] *
+        """To compute empirical expe
+
+        """
+        return sum([self.empirical_fcprob[feature][cls] *
                     self.feature_funcs[feature][cls](feature, cls)
                     for feature in self.features for cls in self.classes])
 
@@ -110,16 +114,15 @@ class MaxEntropyClassifier:
                           for _feature in _x]))
             for cls in self.classes])
 
-    # TODO: modify the func name
-    def _compute_Pyx(self, _x, _y):
+    def _compute_prob_y_given_x(self, _x, _y):
         return math.exp(sum([
             self.weights[_feature] *
             self.feature_funcs[_feature][_y](_feature, _y)
             for _feature in _x])) / self._normalize(_x)
 
     def _compute_estimated_expectation(self):
-        return sum([self.empirical_fproba[feature] *
-                    self._compute_Pyx(feature, cls) *
+        return sum([self.empirical_fprob[feature] *
+                    self._compute_prob_y_given_x(feature, cls) *
                     self.feature_funcs[feature][cls](feature, cls)
                     for feature, cls in self.Features])
 
@@ -133,32 +136,33 @@ class MaxEntropyClassifier:
 
         # TODO: finish the return message of the max ent clf instance that is
         #       trained
-        return "Max Entropy Classifier:\n" \
+        return "Max Entropy Classifier trained:\n" \
                "-max iteration: 200\n" \
                "-algorithm:{0}\n" \
                "" \
                "".format(algorithm)
+
+    @staticmethod
+    def convergence(new_weights, old_weights):
+        for new_weight, old_weight in zip(new_weights, old_weights):
+            if abs(new_weight - old_weight) >= EPSILON:
+                return False
+        return True
 
     def _train_max_ent_clf_with_gis(self):
         """ Generalized Iterative Scaling
 
         """
         self.empirical_ffreq = self._compute_empirical_ffreq()
-        self.empirical_fproba = dict(
+        self.empirical_fprob = dict(
             (feature, count / self.train_set_num
              for feature, count in self.empirical_ffreq.items()))
         self.empirical_fcfreq = self._compute_empirical_fcfreq()
-        self.empirical_fcproba = dict(
+        self.empirical_fcprob = dict(
             (feature, dict((cls, fccount / self.train_set_num
                             for cls, fccount in fccounts.items()))
              for feature, fccounts in self.empirical_fcfreq.items()
              ))
-
-        def convergence(new_weights, old_weights):
-            for new_weight, old_weight in zip(new_weights, old_weights):
-                if abs(new_weight - old_weight) >= EPSILON:
-                    return False
-            return True
 
         # the empirical expected value of f_i
         empirical_expectation = self._compute_empirical_expectation()
@@ -167,8 +171,8 @@ class MaxEntropyClassifier:
 
         # In theory C can be any constant greater than or equal to the figure in
         #
-        #         C = MAX(SUM(f_i(x, y)))
-        #             x,y
+        #         C = max(∑(f_i(x, y)))
+        #                 x,y
         #
         # In practice C is maximised over the (x,y) pairs in the training data,
         # since 1/C determines the rate of convergence of the algorithm it is
@@ -180,7 +184,7 @@ class MaxEntropyClassifier:
                 self.tmp_weights = self.weights
                 self.weights[feature] += \
                     math.log(empirical_expectation / estimated_expectation) / c
-                if convergence(self.weights, self.tmp_weights):
+                if self.convergence(self.weights, self.tmp_weights):
                     break
 
     # TODO: IIS Algorithm
@@ -190,23 +194,34 @@ class MaxEntropyClassifier:
         Steps:
             - Start with some (arbitrary) value for weight_feature
             - Repeat until convergence:
-                          ∂B()
-                -- Solve -------- = ∑ p(x, y)f_i(x, y) - ∑ p(x) ∑ p(y|x)f_i(x, y)
-                         ∂(d_i)     x,y                  x
+                          ∂B(g)
+                -- Solve ------- = ∑ p(x, y)f_i(x, y) - ∑ p(x) ∑ p(y|x)f_i(x, y)
+                         ∂(d_i)     x,y                 x
+
+                       d_i can be computed using NewTon-Raphson method:
+
+                           d_i(k+1) = d_i(k) - g(d_i(k)) / g'(d_i(k))
 
                 -- Set w_i <-- w_i + d_i
+
         """
-        pass
+        for _ in range(self.max_iteration):
+            tmp_weight = self.weights
+            for feature in self.features:
+                delta_feature = newton_raphson_method()
+                self.weights[feature] += delta_feature
+            if self.convergence(self.weights, tmp_weight):
+                break
 
     # TODO: BFGS Algorithm
     def _train_max_ent_clf_with_bfgs(self):
         pass
 
     def classify(self, x):
-        proba = {}
+        prob = {}
         for cls in self.classes:
-            proba[cls] = self._compute_Pyx(x, cls)
-        return max(proba, key=proba.get)
+            prob[cls] = self._compute_prob_y_given_x(x, cls)
+        return max(prob, key=prob.get)
 
     @classmethod
     def test(cls):
