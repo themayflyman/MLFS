@@ -47,8 +47,7 @@ class MaxEntropyClassifier:
         self.train_set = None
         self.train_set_num = None
         self.features = None
-        self.feature_funcs_example = None
-        self.feature_funcs = self.feature_funcs_example
+        self.feature_funcs = None
         self.fcs = None
 
     @property
@@ -61,12 +60,25 @@ class MaxEntropyClassifier:
 
     @staticmethod
     def indicator_func(*args):
+        """
+        indicator_function takes at least one tuples, of each consists two
+        values for comparison
+        :param args: tuple of two values
+        :return: if values within each tuple equal to each other, return 1,
+                 0 otherwise
+        """
         for value_set in args:
             if value_set[0] != value_set[1]:
                 return 0
         return 1
 
     def _compute_empirical_ffreq(self):
+        """ A method that counts the times each feature occurs in the training
+            set
+
+        :return: a dict with features as keys and the its corresponding
+                 frequency
+        """
         empirical_ffreq = dict().fromkeys(self.features)
         for feature in self.features:
             empirical_ffreq[feature] = sum(
@@ -77,6 +89,12 @@ class MaxEntropyClassifier:
         return empirical_ffreq
 
     def _compute_empirical_fcfreq(self):
+        """ A method that counts the times each feature occurs with each class
+            occurred in the training set
+
+        :return: a dict with (feature, class) pair as keys and its corresponding
+                 frequency
+        """
         empirical_fcfreq = dict().fromkeys(self.fcs)
 
         for feature, cls in self.fcs:
@@ -89,14 +107,17 @@ class MaxEntropyClassifier:
         return empirical_fcfreq
 
     def _compute_empirical_expectation(self):
-        """To compute empirical expectation
-
-        """
         return sum([self.empirical_fcprob[feature, cls] *
                     self.feature_funcs[feature, cls](feature, cls)
                     for feature, cls in self.fcs])
 
     def _compute_prob_y_given_x(self, _x, _y):
+        """ A method computes the probability of y with the condition of x
+
+        :param _x: given x
+        :param _y: given y
+        :return: probability
+        """
         normalisation_constant = sum([
             math.exp(sum([self.weights[_feature] *
                           self.feature_funcs[_feature, cls](_feature, cls)
@@ -186,7 +207,6 @@ class MaxEntropyClassifier:
             if self.convergence(self.weights, self.tmp_weights):
                 break
 
-    # TODO: IIS Algorithm
     def _train_max_ent_clf_with_iis(self):
         """ Improved Iterative Scaling
 
