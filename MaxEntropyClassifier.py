@@ -10,13 +10,13 @@ IRIS_DATASET = IrisDataset()
 EPSILON = 0.00001
 
 
-def feature_func_example(feature, cls):
-    def the_actual_feature_func(_feature, _cls):
+def generate_feature_func(feature, cls):
+    def feature_func(_feature, _cls):
         if feature == _feature and cls == _cls:
             return 1
         else:
             return 0
-    return the_actual_feature_func
+    return feature_func
 
 
 # TODO: detailed notes
@@ -36,31 +36,22 @@ class MaxEntropyClassifier:
     be derived by choosing the model with maxinum entropy (i.e the most uniform
     model) from a set of models that satisfy a certain of constraints.
 
-    >>> max_ent_clf = MaxEntropyClassifier(x_train, y_train)
-    >>> max_ent_clf.train()
+    >>> max_ent_clf = MaxEntropyClassifier()
+    >>> max_ent_clf.train(x_train=x_train, y_train=y_train)
+    >>>
     >>>
 
     """
-    def __init__(self, x_train, y_train, **kwargs):
+    def __init__(self, **kwargs):
         self.max_iteration = kwargs.get("max_iteration", 200)
-        self.classes = kwargs.get("classes", set(y_train))
-        self.weights = kwargs.get("weights",
-                                  dict().fromkeys(self.Features, 0))
-
-        self.train_set = list(zip(x_train, y_train))
-        self.train_set_num = sum(1 for _ in self.train_set)  # len(train_set)
-        # functions that extracts feature
-        self.features = set([_feature for _x in x_train for _feature in _x])
-        self.feature_func = feature_func_example
-        self.feature_funcs_example = dict((feature,
-                                           dict((cls,
-                                                 self.feature_func(feature,
-                                                                   cls)
-                                                 for cls in self.classes))
-                                           for feature in self.features))
+        self.weights = kwargs.get("weights")
+        self.classes = None
+        self.train_set = None
+        self.train_set_num = None
+        self.features = None
+        self.feature_funcs_example = None
         self.feature_funcs = self.feature_funcs_example
-        self.Features = set(list(itertools.product(self.features,
-                                                   self.classes)))
+        self.fcs = None
 
     @property
     def max_iteration(self):
@@ -88,45 +79,56 @@ class MaxEntropyClassifier:
         return empirical_ffreq
 
     def _compute_empirical_fcfreq(self):
-        empirical_fcfreq = dict((feature, dict.fromkeys(self.classes)
-                                 for feature in self.features))
-        for feature in self.features:
-            for cls in self.classes:
-                empirical_fcfreq[feature][cls] = sum(
+        empirical_fcfreq = dict().fromkeys(self.fcs)
+
+        for feature, cls in self.fcs:
+            empirical_fcfreq[feature, cls] = sum(
                     [self.indicator_func((_feature, feature), (_y, cls))
                      for _x, _y in self.train_set
                      for _feature in _x]
                 )
+
         return empirical_fcfreq
 
     def _compute_empirical_expectation(self):
-        """To compute empirical expe
+        """To compute empirical expectation
 
         """
-        return sum([self.empirical_fcprob[feature][cls] *
-                    self.feature_funcs[feature][cls](feature, cls)
-                    for feature in self.features for cls in self.classes])
+        return sum([self.empirical_fcprob[feature, cls] *
+                    self.feature_funcs[feature, cls](feature, cls)
+                    for feature, cls in self.fcs])
 
-    def _normalize(self, _x):
-        return sum([
+    def _compute_prob_y_given_x(self, _x, _y):
+        normalisation_constant = sum([
             math.exp(sum([self.weights[_feature] *
-                          self.feature_funcs[_feature][cls](_feature, cls)
+                          self.feature_funcs[_feature, cls](_feature, cls)
                           for _feature in _x]))
             for cls in self.classes])
 
-    def _compute_prob_y_given_x(self, _x, _y):
         return math.exp(sum([
             self.weights[_feature] *
-            self.feature_funcs[_feature][_y](_feature, _y)
-            for _feature in _x])) / self._normalize(_x)
+            self.feature_funcs[_feature, _y](_feature, _y)
+            for _feature in _x])) / normalisation_constant
 
     def _compute_estimated_expectation(self):
         return sum([self.empirical_fprob[feature] *
                     self._compute_prob_y_given_x(feature, cls) *
-                    self.feature_funcs[feature][cls](feature, cls)
-                    for feature, cls in self.Features])
+                    self.feature_funcs[feature, cls](feature, cls)
+                    for feature, cls in self.fcs])
 
-    def train(self, algorithm="IIS"):
+    def train(self, x_train, y_train, algorithm="IIS"):
+        self.classes = set(y_train)
+        self.train_set = list(zip(x_train, y_train))
+        self.train_set_num = sum(1 for _ in self.train_set)  # len(train_set)
+        # functions that extracts feature
+        self.features = set([_feature for _x in x_train for _feature in _x])
+        # a list of pairs of feature and class occurred in training set
+        self.fcs = set(list(itertools.product(self.features,
+                                              self.classes)))
+        self.feature_funcs_example = dict((fc, generate_feature_func(*fc)
+                                           for fc in self.fcs))
+        self.feature_funcs = self.feature_funcs_example
+        self.weights = dict().fromkeys(self.fcs)
         if algorithm == "IIS":
             self._train_max_ent_clf_with_iis()
         elif algorithm == "GIS":
@@ -158,11 +160,9 @@ class MaxEntropyClassifier:
             (feature, count / self.train_set_num
              for feature, count in self.empirical_ffreq.items()))
         self.empirical_fcfreq = self._compute_empirical_fcfreq()
-        self.empirical_fcprob = dict(
-            (feature, dict((cls, fccount / self.train_set_num
-                            for cls, fccount in fccounts.items()))
-             for feature, fccounts in self.empirical_fcfreq.items()
-             ))
+        self.empirical_fcprob = \
+            dict((fc, fccount / self.train_set_num
+                  for fc, fccount in self.empirical_fcfreq.items()))
 
         # the empirical expected value of f_i
         empirical_expectation = self._compute_empirical_expectation()
@@ -182,10 +182,11 @@ class MaxEntropyClassifier:
         for _ in range(self.max_iteration):
             for feature in self.features:
                 self.tmp_weights = self.weights
-                self.weights[feature] += \
-                    math.log(empirical_expectation / estimated_expectation) / c
-                if self.convergence(self.weights, self.tmp_weights):
-                    break
+                delta = math.log(
+                    empirical_expectation / estimated_expectation) / c
+                self.weights[feature] += delta
+            if self.convergence(self.weights, self.tmp_weights):
+                break
 
     # TODO: IIS Algorithm
     def _train_max_ent_clf_with_iis(self):
@@ -195,8 +196,8 @@ class MaxEntropyClassifier:
             - Start with some (arbitrary) value for weight_feature
             - Repeat until convergence:
                           ∂B(g)
-                -- Solve ------- = ∑ p(x, y)f_i(x, y) - ∑ p(x) ∑ p(y|x)f_i(x, y)
-                         ∂(d_i)     x,y                 x
+                -- Solve ------- = ∑ p(x, y)f_i(x, y) - ∑ p(x) ∑ p(y|x)f_i(x, y) e^w_i * f#(x, y)
+                         ∂(d_i)   x,y                   x
 
                        d_i can be computed using NewTon-Raphson method:
 
@@ -205,11 +206,25 @@ class MaxEntropyClassifier:
                 -- Set w_i <-- w_i + d_i
 
         """
+        self.empirical_ffreq = self._compute_empirical_ffreq()
+        self.empirical_fprob = dict(
+            (feature, count / self.train_set_num
+             for feature, count in self.empirical_ffreq.items()))
+        self.empirical_fcfreq = self._compute_empirical_fcfreq()
+        self.empirical_fcprob = \
+            dict((fc, fccount / self.train_set_num
+                  for fc, fccount in self.empirical_fcfreq.items()))
+
+        def f_hash(x, y):
+            return sum([feature_func(x, y) for feature_func in self.feature_funcs])
+
+        goal = sum([self.empirical_fcprob[fc] * self.feature_funcs[fc] for fc in self.fcs]) - \
+        sum([self.empirical_fprob[feature] * sum([self.empirical_fcprob[feature, cls] * self.feature_funcs[feature, cls] * math.e**(self.weights[feature]*f_hash(feature, cls))  for cls in self.classes]) for feature in self.features])
         for _ in range(self.max_iteration):
             tmp_weight = self.weights
             for feature in self.features:
-                delta_feature = newton_raphson_method()
-                self.weights[feature] += delta_feature
+                delta = newton_raphson_method(goal)
+                self.weights[feature] += delta
             if self.convergence(self.weights, tmp_weight):
                 break
 
@@ -225,7 +240,7 @@ class MaxEntropyClassifier:
 
     @classmethod
     def test(cls):
-        max_ent_clf = cls(IRIS_DATASET.data, IRIS_DATASET.target)
+        max_ent_clf = cls()
         max_ent_clf.train()
 
 
