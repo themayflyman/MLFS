@@ -18,8 +18,9 @@ def gradient(func, params, dimension, **kwargs):
         return func(dict(params, dimension=params[dimension]+delta)) - func(params) / delta
 
 
-def diff(func, params):
-    pass
+def differentiate(func, params, **kwargs):
+    delta = kwargs.get('delta', 1e-10)
+    return func(params + delta) - func(params)
 
 
 class Optimizer(metaclass=ABCMeta):
@@ -57,6 +58,9 @@ class GradientDescentOptimizer(Optimizer):
 
         return params
 
+    # TODO: Use closure, whenever minimize() is called, it returns a
+    #       minimization (an operation), all minimizations will be run only when
+    #       run() is called
     def minimize(self, loss, params, param_list):
         # Define a minimization(a minimize operation?)
         # Use closure
@@ -73,16 +77,25 @@ class NewTonOptimizer(Optimizer):
         pass
 
 
-# TODO: newton's method
 def newton_raphson_method(func, **kwargs):
-    def get_initial_solution():
-        pass
-    max_iteration = kwargs.get("max_iteration", 200)
-    initial_solution = kwargs.get("initial_solution", get_initial_solution(func))
-    solution = initial_solution
+    func_prime = kwargs.get("func_prime")
+    initial_guess = kwargs.get("initial_guess", 0)
+    solution = initial_guess
 
-    for _ in range(max_iteration):
-        solution -= func(solution) / diff(func, solution)
+    # Would it be faster?
+    # if func_prime:
+    #     def step(x):
+    #         return x - func(x) / func_prime(x)
+    # else:
+    #     def step(x):
+    #         return x - func(x) / differentiate(func, x)
+
+    while abs(func(solution)) > 1e-50:
+        # step(solution)
+        if func_prime:
+            solution -= func(solution) / func_prime(solution)
+        else:
+            solution -= func(solution) / differentiate(func,solution)
 
     return solution
 
