@@ -4,7 +4,7 @@
 from math import log2
 from collections import Counter
 import numpy as np
-from Dataset import WaterMelonDataset, LoanApplierDataset
+from dataset import WaterMelonDataset, LoanApplierDataset
 
 
 WATERMELON_DATASET = WaterMelonDataset()

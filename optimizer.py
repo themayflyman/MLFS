@@ -5,7 +5,7 @@ import copy
 import numpy as np
 # from sympy import *
 from abc import ABCMeta, abstractmethod
-from Losses import *
+from losses import *
 
 
 def gradient(func, params, dimension, **kwargs):

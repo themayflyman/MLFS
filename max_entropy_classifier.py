@@ -3,8 +3,8 @@
 
 import math
 import itertools
-from Dataset import IrisDataset
-from Optimizer import newton_raphson_method
+from dataset import IrisDataset
+from optimizer import newton_raphson_method
 
 IRIS_DATASET = IrisDataset()
 EPSILON = 0.00001
@@ -38,8 +38,6 @@ class MaxEntropyClassifier:
 
     >>> max_ent_clf = MaxEntropyClassifier()
     >>> max_ent_clf.train(x_train=x_train, y_train=y_train)
-    >>>
-    >>>
 
     """
     def __init__(self, **kwargs):

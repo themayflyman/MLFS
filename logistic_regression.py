@@ -4,7 +4,7 @@
 from math import exp, log2
 
 import numpy as np
-from Dataset import IrisDataset
+from dataset import IrisDataset
 
 IRIS_DATASET = IrisDataset()
 

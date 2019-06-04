@@ -6,7 +6,7 @@ from functools import reduce
 import operator
 import math
 import pandas as pd
-from Dataset import WaterMelonDataset
+from dataset import WaterMelonDataset
 
 
 WATERMELON_DATASET = WaterMelonDataset()

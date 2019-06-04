@@ -4,8 +4,8 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from Optimizer import GradientDescentOptimizer
-from Dataset import IrisDataset
+from optimizer import GradientDescentOptimizer
+from dataset import IrisDataset
 
 
 IRIS_DATASET = IrisDataset()
