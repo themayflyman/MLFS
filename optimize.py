@@ -99,3 +99,7 @@ def newton_raphson_method(func, **kwargs):
 
     return solution
 
+
+def sequential_minimal_optimize():
+    pass
+

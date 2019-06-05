@@ -4,7 +4,7 @@
 import math
 import itertools
 from dataset import IrisDataset
-from optimizer import newton_raphson_method
+from optimize import newton_raphson_method
 
 IRIS_DATASET = IrisDataset()
 EPSILON = 0.00001
