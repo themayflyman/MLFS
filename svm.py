@@ -33,7 +33,7 @@ class SupportVectorMachine:
         # C is essentially a regularisation parameter, which controls the
         # trade-off between achieving a low error on the training data and
         # minimising the norm of the weights
-        self._C = kwargs.get("C", 1.0)
+        self._C = kwargs.get("C", 1)
         self._tol = kwargs.get('tol', 1e-3)
         self.kernel = kwargs.get("kernel", "gaussian")
         if self.kernel == "linear":
@@ -157,7 +157,7 @@ class SupportVectorMachine:
 
         random_index = randint(0,
                                len(index_of_samples_violate_kkt_conditions)-1)
-        return index_of_samples_violate_kkt_conditions[random_index]
+        return index_of_samples_violate_kkt_conditions[0]
 
     def _inner_loop(self, index_i):
         # Given the first ɑ_i, the inner loop looks for a non-boundary that
@@ -165,16 +165,12 @@ class SupportVectorMachine:
         # sequential scan through the non-boundary examples, starting at a
         # random position; if this fails too, it starts a sequential scan
         # through all examples, also starting at a random position.
-        index_list = list(range(self.sample_num))
-        index_list.remove(index_i)
         if self.prediction_error_cache[index_i] > 0:
-            index_j = min(index_list,
-                          key=lambda j: self.prediction_error_cache[j])
+            index_j = np.argmin(self.prediction_error_cache)
         else:
-            index_j = max(index_list,
-                          key=lambda j: self.prediction_error_cache[j])
+            index_j = np.argmax(self.prediction_error_cache)
 
-        return index_j
+        return int(index_j)
 
     def sequential_minial_optimize(self):
         # A cached error value for every non-bound example in the training set
@@ -183,6 +179,7 @@ class SupportVectorMachine:
         self.prediction_error_cache = [self._compute_prediction_error(_x, _y)
                                        for _x, _y in zip(self._x_train,
                                                          self._y_train)]
+        print(self.prediction_error_cache)
         for _ in range(self.max_iteration):
             # SMO users heuristics to choose which two Lagrange multipliers to
             # jointly optimize
@@ -200,6 +197,8 @@ class SupportVectorMachine:
             error_i = self.prediction_error_cache[i]
             x_i = self._x_train[i]
             y_i = self._y_train[i]
+            if y_i == 0:
+                print("HHHHHHHHHHHHHHHHHHHHH")
             alpha_j = self.alpha[j]
             error_j = self.prediction_error_cache[j]
             x_j = self._x_train[j]
@@ -215,28 +214,43 @@ class SupportVectorMachine:
                 self.kernel_func(x_i, x_i) + self.kernel_func(x_j, x_j) - 2 * \
                 self.kernel_func(x_i, x_j)
 
-            unclipped_new_alpha_j = alpha_j + y_j * (error_i - error_j) / eta
+            if eta > 0:
+                unclipped_new_alpha_j = alpha_j + y_j * (error_i - error_j) / eta
 
-            if unclipped_new_alpha_j > upper_bound:
-                clipped_new_alpha_j = upper_bound
-            elif unclipped_new_alpha_j < lower_bound:
-                clipped_new_alpha_j = lower_bound
+                if unclipped_new_alpha_j > upper_bound:
+                    new_alpha_j = upper_bound
+                elif unclipped_new_alpha_j < lower_bound:
+                    new_alpha_j = lower_bound
+                else:
+                    new_alpha_j = unclipped_new_alpha_j
             else:
-                clipped_new_alpha_j = unclipped_new_alpha_j
+                fi = y_i * (error_i + self.b) - alpha_i * self.kernel_func(x_i, x_i) - y_i * y_j * alpha_j * self.kernel_func(x_i, x_j)
+                fj = y_j * (error_j + self.b) - y_i * y_j * alpha_i * self.kernel_func(x_i, x_j) - alpha_j * self.kernel_func(x_i, x_j)
+                lower_bound_i = alpha_i + y_i * y_j * (alpha_j - lower_bound)
+                upper_bound_i = alpha_i + y_i * y_j * (alpha_j - upper_bound)
+                lower_bound_obj = lower_bound_i * fi + lower_bound * fj + 0.5 * lower_bound_i**2 * self.kernel_func(x_i, x_i) + 0.5 * lower_bound**2 * self.kernel_func(x_j, x_j) + y_i * y_j * lower_bound * lower_bound_i * self.kernel_func(x_i, x_j)
+                upper_bound_obj = upper_bound_i * fi + upper_bound * fj + 0.5 * upper_bound_i**2 * self.kernel_func(x_i, x_i) + 0.5 * upper_bound**2 * self.kernel_func(x_j, x_j) + y_i * y_j * upper_bound * upper_bound_i * self.kernel_func(x_i, x_j)
+                if lower_bound_obj < upper_bound_obj - 1e-3:
+                    new_alpha_j = lower_bound
+                elif lower_bound_obj > upper_bound_obj + 1e-3:
+                    new_alpha_j = upper_bound
+                else:
+                    new_alpha_j = alpha_j
 
-            new_alpha_i = alpha_i + y_i * y_j * (alpha_j - clipped_new_alpha_j)
+            # if abs(new_alpha_j - alpha_j) < 1e-3 * (alpha_j + new_alpha_j + 1e-3):
+            #     continue
+
+            new_alpha_i = alpha_i + y_i * y_j * (alpha_j - new_alpha_j)
 
             b_i = \
                 error_i + \
                 y_i * (new_alpha_i - alpha_i) * self.kernel_func(x_i, x_i) + \
-                y_j * (clipped_new_alpha_j - alpha_j) * self.kernel_func(x_i,
-                                                                         x_j) +\
+                y_j * (new_alpha_j - alpha_j) * self.kernel_func(x_i, x_j) + \
                 self.b
             b_j = \
                 error_j + \
                 y_i * (new_alpha_i - alpha_i) * self.kernel_func(x_i, x_j) + \
-                y_j * (clipped_new_alpha_j - alpha_j) * self.kernel_func(x_j,
-                                                                         x_j) +\
+                y_j * (new_alpha_j - alpha_j) * self.kernel_func(x_j, x_j) + \
                 self.b
 
             if 0 < alpha_i < self.C:
@@ -244,23 +258,20 @@ class SupportVectorMachine:
             elif 0 < alpha_j < self.C:
                 new_b = b_j
             else:
-                new_b = (b_i + b_j) / 2.0
+                new_b = (b_i + b_j) * 0.5
 
             # Update alpha, b and error cache
             if self.kernel == "linear":
                 self.weights += \
                     y_i * (new_alpha_i - self.alpha[i]) * x_i + \
-                    y_j * (clipped_new_alpha_j - self.alpha[j]) * x_j
+                    y_j * (new_alpha_j - self.alpha[j]) * x_j
             self.alpha[i] = new_alpha_i
-            self.alpha[j] = clipped_new_alpha_j
+            self.alpha[j] = new_alpha_j
             self.b = new_b
             self.prediction_error_cache[i] = self._compute_prediction_error(x_i,
                                                                             y_i)
             self.prediction_error_cache[j] = self._compute_prediction_error(x_j,
                                                                             y_j)
-
-    def _compute_weights(self):
-        return np.dot(self._x_train.T, np.multiply(self.alpha, self._y_train))
 
     def train(self, x_train, y_train):
         self.weights = np.zeros(x_train.shape[1])
@@ -271,7 +282,7 @@ class SupportVectorMachine:
 
         self.sequential_minial_optimize()
 
-        if self.kernel == "Linear Kernel":
+        if self.kernel == "linear":
             self.decision_func = self._linear_decision_func
         else:
             self.decision_func = self._nonlinear_decision_func
@@ -295,11 +306,15 @@ class SupportVectorMachine:
 
     @classmethod
     def test(cls):
-        svm = cls(kernel="linear")
+        svm = cls(kernel="linear", max_iteration=200)
         x_train, x_test, y_train, y_test = \
             train_test_split(IRIS_DATASET.data[:100],
                              IRIS_DATASET.target[:100], test_size=0.25)
         svm.train(x_train, y_train)
+        print(svm.alpha)
+        print(svm.prediction_error_cache)
+        from sklearn.metrics import accuracy_score
+        print(accuracy_score(y_test, [svm.predict(x) for x in x_test]))
         print(svm.score(x_test, y_test))
 
 
