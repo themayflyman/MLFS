@@ -173,105 +173,109 @@ class SupportVectorMachine:
         return int(index_j)
 
     def sequential_minial_optimize(self):
-        # A cached error value for every non-bound example in the training set
-        # and within the inner loop it chooses an error to approximately
-        # maximize the step size.
-        self.prediction_error_cache = [self._compute_prediction_error(_x, _y)
-                                       for _x, _y in zip(self._x_train,
-                                                         self._y_train)]
-        print(self.prediction_error_cache)
-        for _ in range(self.max_iteration):
-            # SMO users heuristics to choose which two Lagrange multipliers to
-            # jointly optimize
-            # The outer loop selects the first ɑ_i
-            i = self._outer_loop()
-            # If no sample violates KKT, the optimization is done
-            if i is None:
-                print("No sample violates KKT conditions, "
-                      "current iteration: {}, "
-                      "exiting SMO...".format(_))
-                break
-            # The inner loop selects the second ɑ_i that maximizes |E_2 - E_1|
-            j = self._inner_loop(i)
-            alpha_i = self.alpha[i]
-            error_i = self.prediction_error_cache[i]
-            x_i = self._x_train[i]
-            y_i = self._y_train[i]
-            if y_i == 0:
-                print("HHHHHHHHHHHHHHHHHHHHH")
-            alpha_j = self.alpha[j]
-            error_j = self.prediction_error_cache[j]
-            x_j = self._x_train[j]
-            y_j = self._y_train[j]
-            if y_i != y_j:
-                lower_bound = max(0, alpha_i - alpha_j)
-                upper_bound = min(self.C, self.C+alpha_j - alpha_i)
+        iteration = 0
+        while iteration < self.max_iteration:
+            num_updated_alphas = 0
+            # A cached error value for every non-bound example in the training set
+            # and within the inner loop it chooses an error to approximately
+            # maximize the step size.
+            self.prediction_error_cache = [self._compute_prediction_error(_x, _y)
+                                           for _x, _y in zip(self._x_train,
+                                                             self._y_train)]
+            for j in range(self.sample_num):
+                if self.if_violate_kkt_conditions(j):
+                    # Given the first ɑ_i, the inner loop looks for a non-boundary that
+                    # maximizes |E_2 - E_1|. If this does not make progress, it starts a
+                    # sequential scan through the non-boundary examples, starting at a
+                    # random position; if this fails too, it starts a sequential scan
+                    # through all examples, also starting at a random position.
+                    if self.prediction_error_cache[j] > 0:
+                        i = np.argmin(self.prediction_error_cache)
+                    else:
+                        i = np.argmax(self.prediction_error_cache)
+                    alpha_i = self.alpha[i]
+                    error_i = self.prediction_error_cache[i]
+                    x_i = self._x_train[i]
+                    y_i = self._y_train[i]
+                    alpha_j = self.alpha[j]
+                    error_j = self.prediction_error_cache[j]
+                    x_j = self._x_train[j]
+                    y_j = self._y_train[j]
+                    if y_i != y_j:
+                        lower_bound = max(0, alpha_i - alpha_j)
+                        upper_bound = min(self.C, self.C+alpha_j - alpha_i)
+                    else:
+                        lower_bound = max(0, alpha_i + alpha_j - self.C)
+                        upper_bound = min(self.C, alpha_i + alpha_j)
+
+                    eta = \
+                        self.kernel_func(x_i, x_i) + self.kernel_func(x_j, x_j) - 2 * \
+                        self.kernel_func(x_i, x_j)
+
+                    if eta > 0:
+                        unclipped_new_alpha_j = alpha_j + y_j * (error_i - error_j) / eta
+
+                        if unclipped_new_alpha_j > upper_bound:
+                            new_alpha_j = upper_bound
+                        elif unclipped_new_alpha_j < lower_bound:
+                            new_alpha_j = lower_bound
+                        else:
+                            new_alpha_j = unclipped_new_alpha_j
+                    else:
+                        fi = y_i * (error_i + self.b) - alpha_i * self.kernel_func(x_i, x_i) - y_i * y_j * alpha_j * self.kernel_func(x_i, x_j)
+                        fj = y_j * (error_j + self.b) - y_i * y_j * alpha_i * self.kernel_func(x_i, x_j) - alpha_j * self.kernel_func(x_i, x_j)
+                        lower_bound_i = alpha_i + y_i * y_j * (alpha_j - lower_bound)
+                        upper_bound_i = alpha_i + y_i * y_j * (alpha_j - upper_bound)
+                        lower_bound_obj = lower_bound_i * fi + lower_bound * fj + 0.5 * lower_bound_i**2 * self.kernel_func(x_i, x_i) + 0.5 * lower_bound**2 * self.kernel_func(x_j, x_j) + y_i * y_j * lower_bound * lower_bound_i * self.kernel_func(x_i, x_j)
+                        upper_bound_obj = upper_bound_i * fi + upper_bound * fj + 0.5 * upper_bound_i**2 * self.kernel_func(x_i, x_i) + 0.5 * upper_bound**2 * self.kernel_func(x_j, x_j) + y_i * y_j * upper_bound * upper_bound_i * self.kernel_func(x_i, x_j)
+                        if lower_bound_obj < upper_bound_obj - 1e-3:
+                            new_alpha_j = lower_bound
+                        elif lower_bound_obj > upper_bound_obj + 1e-3:
+                            new_alpha_j = upper_bound
+                        else:
+                            new_alpha_j = alpha_j
+
+                    if abs(new_alpha_j - alpha_j) < 1e-3 * (alpha_j + new_alpha_j + 1e-3):
+                        continue
+
+                    new_alpha_i = alpha_i + y_i * y_j * (alpha_j - new_alpha_j)
+
+                    b_i = \
+                        - error_i - \
+                        y_i * (new_alpha_i - alpha_i) * self.kernel_func(x_i, x_i) - \
+                        y_j * (new_alpha_j - alpha_j) * self.kernel_func(x_i, x_j) + \
+                        self.b
+                    b_j = \
+                        - error_j - \
+                        y_i * (new_alpha_i - alpha_i) * self.kernel_func(x_i, x_j) - \
+                        y_j * (new_alpha_j - alpha_j) * self.kernel_func(x_j, x_j) + \
+                        self.b
+
+                    if 0 < alpha_i < self.C:
+                        new_b = b_i
+                    elif 0 < alpha_j < self.C:
+                        new_b = b_j
+                    else:
+                        new_b = (b_i + b_j) * 0.5
+
+                    # Update alpha, b and error cache
+                    if self.kernel == "linear":
+                        self.weights += \
+                            y_i * (new_alpha_i - self.alpha[i]) * x_i + \
+                            y_j * (new_alpha_j - self.alpha[j]) * x_j
+                    self.alpha[i] = new_alpha_i
+                    self.alpha[j] = new_alpha_j
+                    self.b = new_b
+                    self.prediction_error_cache[i] = self._compute_prediction_error(x_i,
+                                                                                    y_i)
+                    self.prediction_error_cache[j] = self._compute_prediction_error(x_j,
+                                                                                    y_j)
+
+                    num_updated_alphas += 1
+            if num_updated_alphas == 0:
+                iteration += 1
             else:
-                lower_bound = max(0, alpha_i + alpha_j - self.C)
-                upper_bound = min(self.C, alpha_i + alpha_j)
-
-            eta = \
-                self.kernel_func(x_i, x_i) + self.kernel_func(x_j, x_j) - 2 * \
-                self.kernel_func(x_i, x_j)
-
-            if eta > 0:
-                unclipped_new_alpha_j = alpha_j + y_j * (error_i - error_j) / eta
-
-                if unclipped_new_alpha_j > upper_bound:
-                    new_alpha_j = upper_bound
-                elif unclipped_new_alpha_j < lower_bound:
-                    new_alpha_j = lower_bound
-                else:
-                    new_alpha_j = unclipped_new_alpha_j
-            else:
-                fi = y_i * (error_i + self.b) - alpha_i * self.kernel_func(x_i, x_i) - y_i * y_j * alpha_j * self.kernel_func(x_i, x_j)
-                fj = y_j * (error_j + self.b) - y_i * y_j * alpha_i * self.kernel_func(x_i, x_j) - alpha_j * self.kernel_func(x_i, x_j)
-                lower_bound_i = alpha_i + y_i * y_j * (alpha_j - lower_bound)
-                upper_bound_i = alpha_i + y_i * y_j * (alpha_j - upper_bound)
-                lower_bound_obj = lower_bound_i * fi + lower_bound * fj + 0.5 * lower_bound_i**2 * self.kernel_func(x_i, x_i) + 0.5 * lower_bound**2 * self.kernel_func(x_j, x_j) + y_i * y_j * lower_bound * lower_bound_i * self.kernel_func(x_i, x_j)
-                upper_bound_obj = upper_bound_i * fi + upper_bound * fj + 0.5 * upper_bound_i**2 * self.kernel_func(x_i, x_i) + 0.5 * upper_bound**2 * self.kernel_func(x_j, x_j) + y_i * y_j * upper_bound * upper_bound_i * self.kernel_func(x_i, x_j)
-                if lower_bound_obj < upper_bound_obj - 1e-3:
-                    new_alpha_j = lower_bound
-                elif lower_bound_obj > upper_bound_obj + 1e-3:
-                    new_alpha_j = upper_bound
-                else:
-                    new_alpha_j = alpha_j
-
-            # if abs(new_alpha_j - alpha_j) < 1e-3 * (alpha_j + new_alpha_j + 1e-3):
-            #     continue
-
-            new_alpha_i = alpha_i + y_i * y_j * (alpha_j - new_alpha_j)
-
-            b_i = \
-                error_i + \
-                y_i * (new_alpha_i - alpha_i) * self.kernel_func(x_i, x_i) + \
-                y_j * (new_alpha_j - alpha_j) * self.kernel_func(x_i, x_j) + \
-                self.b
-            b_j = \
-                error_j + \
-                y_i * (new_alpha_i - alpha_i) * self.kernel_func(x_i, x_j) + \
-                y_j * (new_alpha_j - alpha_j) * self.kernel_func(x_j, x_j) + \
-                self.b
-
-            if 0 < alpha_i < self.C:
-                new_b = b_i
-            elif 0 < alpha_j < self.C:
-                new_b = b_j
-            else:
-                new_b = (b_i + b_j) * 0.5
-
-            # Update alpha, b and error cache
-            if self.kernel == "linear":
-                self.weights += \
-                    y_i * (new_alpha_i - self.alpha[i]) * x_i + \
-                    y_j * (new_alpha_j - self.alpha[j]) * x_j
-            self.alpha[i] = new_alpha_i
-            self.alpha[j] = new_alpha_j
-            self.b = new_b
-            self.prediction_error_cache[i] = self._compute_prediction_error(x_i,
-                                                                            y_i)
-            self.prediction_error_cache[j] = self._compute_prediction_error(x_j,
-                                                                            y_j)
+                iteration = 0
 
     def train(self, x_train, y_train):
         self.weights = np.zeros(x_train.shape[1])
@@ -306,7 +310,7 @@ class SupportVectorMachine:
 
     @classmethod
     def test(cls):
-        svm = cls(kernel="linear", max_iteration=200)
+        svm = cls(kernel="linear", max_iteration=500)
         x_train, x_test, y_train, y_test = \
             train_test_split(IRIS_DATASET.data[:100],
                              IRIS_DATASET.target[:100], test_size=0.25)
