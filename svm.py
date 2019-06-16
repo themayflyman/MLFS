@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # -*- encoding: utf8 -*-
 
-from random import randint
 import numpy as np
 from sklearn.model_selection import train_test_split
 from dataset import IrisDataset
@@ -47,6 +46,7 @@ class SupportVectorMachine:
         else:
             self.kernel_func = None
             raise ValueError("Unsupported Kernel")
+
         self.degree = kwargs.get("degree", 3)
 
         self.sample_num = None
@@ -104,7 +104,14 @@ class SupportVectorMachine:
     def _string_kernel_func():
         pass
 
+    # TODO: comments about KKT conditions as well as some demonstrations
     def if_violate_kkt_conditions(self, index):
+        """
+        KKT Conditions:
+
+        :param index:
+        :return: a boolean value of if it violates KKT conditions
+        """
         R = self.prediction_error_cache[index] * self._y_train[index]
         if (self.alpha[index] < self.C and R < -self.tol) or \
                 (self.alpha[index] > 0 and R > self.tol):
@@ -128,49 +135,6 @@ class SupportVectorMachine:
                                               self._x_train,
                                               self._y_train)]
                    ) + self.b - y
-
-    def _outer_loop(self):
-        # The outer loop alternates between one sweep through all examples and
-        # as many sweeps as possible through the non-boundary examples
-        # (those with 0 < ɑ_i < C), selecting the example that violates KKT
-        # condition.
-        index_of_samples_violate_kkt_conditions = []
-        index_of_non_bound_sample = [i for i in range(len(self.alpha))
-                                     if 0 < self.alpha[i] < self.C]
-
-        for nbs_index in index_of_non_bound_sample:
-            if self.if_violate_kkt_conditions(nbs_index):
-                index_of_samples_violate_kkt_conditions.append(nbs_index)
-
-        # If all the support vectors on the boundary obey the KKT conditions,
-        # loop through the whole training set to see if there's any sample
-        # violates KKT conditions
-        if not index_of_samples_violate_kkt_conditions:
-            index_to_examine = [i for i in range(self.sample_num)
-                                if i not in index_of_non_bound_sample]
-            for index_te in index_to_examine:
-                if self.if_violate_kkt_conditions(index_te):
-                    index_of_samples_violate_kkt_conditions.append(index_te)
-
-        if not index_of_samples_violate_kkt_conditions:
-            return None
-
-        random_index = randint(0,
-                               len(index_of_samples_violate_kkt_conditions)-1)
-        return index_of_samples_violate_kkt_conditions[0]
-
-    def _inner_loop(self, index_i):
-        # Given the first ɑ_i, the inner loop looks for a non-boundary that
-        # maximizes |E_2 - E_1|. If this does not make progress, it starts a
-        # sequential scan through the non-boundary examples, starting at a
-        # random position; if this fails too, it starts a sequential scan
-        # through all examples, also starting at a random position.
-        if self.prediction_error_cache[index_i] > 0:
-            index_j = np.argmin(self.prediction_error_cache)
-        else:
-            index_j = np.argmax(self.prediction_error_cache)
-
-        return int(index_j)
 
     def sequential_minial_optimize(self):
         iteration = 0
@@ -222,12 +186,28 @@ class SupportVectorMachine:
                         else:
                             new_alpha_j = unclipped_new_alpha_j
                     else:
-                        fi = y_i * (error_i + self.b) - alpha_i * self.kernel_func(x_i, x_i) - y_i * y_j * alpha_j * self.kernel_func(x_i, x_j)
-                        fj = y_j * (error_j + self.b) - y_i * y_j * alpha_i * self.kernel_func(x_i, x_j) - alpha_j * self.kernel_func(x_i, x_j)
+                        fi = y_i * (error_i + self.b) - \
+                             alpha_i * self.kernel_func(x_i, x_i) - \
+                             y_i * y_j * alpha_j * self.kernel_func(x_i, x_j)
+                        fj = \
+                            y_j * (error_j + self.b) - \
+                            y_i * y_j * alpha_i * self.kernel_func(x_i, x_j) - \
+                            alpha_j * self.kernel_func(x_i, x_j)
                         lower_bound_i = alpha_i + y_i * y_j * (alpha_j - lower_bound)
                         upper_bound_i = alpha_i + y_i * y_j * (alpha_j - upper_bound)
-                        lower_bound_obj = lower_bound_i * fi + lower_bound * fj + 0.5 * lower_bound_i**2 * self.kernel_func(x_i, x_i) + 0.5 * lower_bound**2 * self.kernel_func(x_j, x_j) + y_i * y_j * lower_bound * lower_bound_i * self.kernel_func(x_i, x_j)
-                        upper_bound_obj = upper_bound_i * fi + upper_bound * fj + 0.5 * upper_bound_i**2 * self.kernel_func(x_i, x_i) + 0.5 * upper_bound**2 * self.kernel_func(x_j, x_j) + y_i * y_j * upper_bound * upper_bound_i * self.kernel_func(x_i, x_j)
+                        lower_bound_obj = \
+                            lower_bound_i * fi + \
+                            lower_bound * fj + \
+                            0.5 * lower_bound_i**2 * self.kernel_func(x_i, x_i) + \
+                            0.5 * lower_bound**2 * self.kernel_func(x_j, x_j) + \
+                            y_i * y_j * lower_bound * lower_bound_i * self.kernel_func(x_i, x_j)
+                        upper_bound_obj = \
+                            upper_bound_i * fi + \
+                            upper_bound * fj + \
+                            0.5 * upper_bound_i**2 * self.kernel_func(x_i, x_i) + \
+                            0.5 * upper_bound**2 * self.kernel_func(x_j, x_j) + \
+                            y_i * y_j * upper_bound * upper_bound_i * self.kernel_func(x_i, x_j)
+
                         if lower_bound_obj < upper_bound_obj - 1e-3:
                             new_alpha_j = lower_bound
                         elif lower_bound_obj > upper_bound_obj + 1e-3:
@@ -235,6 +215,7 @@ class SupportVectorMachine:
                         else:
                             new_alpha_j = alpha_j
 
+                    # if the alpha is hardly updated, skip this pair of alphas
                     if abs(new_alpha_j - alpha_j) < 1e-3 * (alpha_j + new_alpha_j + 1e-3):
                         continue
 
@@ -258,7 +239,7 @@ class SupportVectorMachine:
                     else:
                         new_b = (b_i + b_j) * 0.5
 
-                    # Update alpha, b and error cache
+                    # update alpha, b and error cache
                     if self.kernel == "linear":
                         self.weights += \
                             y_i * (new_alpha_i - self.alpha[i]) * x_i + \
@@ -272,6 +253,7 @@ class SupportVectorMachine:
                                                                                     y_j)
 
                     num_updated_alphas += 1
+
             if num_updated_alphas == 0:
                 iteration += 1
             else:
@@ -287,18 +269,14 @@ class SupportVectorMachine:
         self.sequential_minial_optimize()
 
         if self.kernel == "linear":
-            self.decision_func = self._linear_decision_func
+            self.decision_func = self._primal_hypothesis_func
         else:
-            self.decision_func = self._nonlinear_decision_func
+            self.decision_func = self._dual_hypothesis_func
 
-        # TODO: Message after the SVM is trained
-        return "Trained message and the current status of svm"
-
-    def _linear_decision_func(self, x):
-        return self._primal_hypothesis_func(x)
-
-    def _nonlinear_decision_func(self, x):
-        return self._dual_hypothesis_func(x)
+        return "SupportVectorMachine(kernel={0}, C={1}, tol={2}, max_iteration={3})".format(self.kernel,
+                                                                                            self.C,
+                                                                                            self.tol,
+                                                                                            self.max_iteration)
 
     def predict(self, x):
         prediction = self.decision_func(x)
@@ -310,15 +288,9 @@ class SupportVectorMachine:
 
     @classmethod
     def test(cls):
-        svm = cls(kernel="linear", max_iteration=500)
-        x_train, x_test, y_train, y_test = \
-            train_test_split(IRIS_DATASET.data[:100],
-                             IRIS_DATASET.target[:100], test_size=0.25)
+        svm = cls(kernel="linear", max_iteration=200)
+        x_train, x_test, y_train, y_test = train_test_split(IRIS_DATASET.data[:100], IRIS_DATASET.target[:100])
         svm.train(x_train, y_train)
-        print(svm.alpha)
-        print(svm.prediction_error_cache)
-        from sklearn.metrics import accuracy_score
-        print(accuracy_score(y_test, [svm.predict(x) for x in x_test]))
         print(svm.score(x_test, y_test))
 
 
