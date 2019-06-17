@@ -192,7 +192,7 @@ class DecisionTree:
                         x_train=x_train,
                         y_train=y_train,
                         feature_labels=list(range(x_train.shape[1])))
-        self._find_leaf_nodes(self.root_node)
+        self.find_leaf_nodes()
         if self.if_prune:
             self.post_prune()
 
