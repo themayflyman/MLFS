@@ -33,6 +33,7 @@ class SupportVectorMachine:
         # trade-off between achieving a low error on the training data and
         # minimising the norm of the weights
         self._C = kwargs.get("C", 1)
+        # numerical tolerance
         self._tol = kwargs.get('tol', 1e-3)
         self.kernel = kwargs.get("kernel", "gaussian")
         if self.kernel == "linear":
@@ -41,8 +42,6 @@ class SupportVectorMachine:
             self.kernel_func = self._gaussian_kernel_func
         elif self.kernel == "poly":
             self.kernel_func = self._polynomial_kernel_func
-        elif self.kernel == "string":
-            self.kernel_func = self._string_kernel_func
         else:
             self.kernel_func = None
             raise ValueError("Unsupported Kernel")
@@ -96,21 +95,28 @@ class SupportVectorMachine:
         return pow((np.dot(x, z) + 1), self.degree)
 
     @staticmethod
-    def _gaussian_kernel_func(x, z, sigma):
+    def _gaussian_kernel_func(x, z, sigma=1):
         return np.exp(-pow(np.linalg.norm(x - z), 2) / 2 * pow(sigma, 2))
 
-    # TODO: finish string kernel func
-    @staticmethod
-    def _string_kernel_func():
-        pass
-
-    # TODO: comments about KKT conditions as well as some demonstrations
     def if_violate_kkt_conditions(self, index):
-        """
-        KKT Conditions:
+        """Check if a certain sample of given index violates KKT conditions
+        For this problem, the KKT conditions are as following:
 
-        :param index:
-        :return: a boolean value of if it violates KKT conditions
+        g(x) = w.T * x + b
+
+        a_i = 0         =>     y_i * g(x_i) >= 1
+        0 < a_i < C     =>     y_i * g(x_i) = 1
+        a_i = C         =>     y_i * g(x_i) <= 1
+
+        Where y_i * g(x_i) - 1 = y_i * g(x_i) - y_i^2 = y_i * (g(x_i) - y_i) = y_i * E_i
+        Let R_i = y_i * E_i
+        Hence, to summarize, the KKT conditions implies:
+
+        a_i < C and R_i < 0 - tolerance
+        a_i > 0 and R_i > 0 + tolerance
+
+        :param index: index of a sample
+        :return: a boolean value of if a given sample violates KKT conditions
         """
         R = self.prediction_error_cache[index] * self._y_train[index]
         if (self.alpha[index] < self.C and R < -self.tol) or \
@@ -154,9 +160,9 @@ class SupportVectorMachine:
                     # random position; if this fails too, it starts a sequential scan
                     # through all examples, also starting at a random position.
                     if self.prediction_error_cache[j] > 0:
-                        i = np.argmin(self.prediction_error_cache)
+                        i = int(np.argmin(self.prediction_error_cache))
                     else:
-                        i = np.argmax(self.prediction_error_cache)
+                        i = int(np.argmax(self.prediction_error_cache))
                     alpha_i = self.alpha[i]
                     error_i = self.prediction_error_cache[i]
                     x_i = self._x_train[i]
@@ -215,7 +221,12 @@ class SupportVectorMachine:
                         else:
                             new_alpha_j = alpha_j
 
-                    # if the alpha is hardly updated, skip this pair of alphas
+                    if new_alpha_j < 1e-8:
+                        new_alpha_j = 0
+                    elif new_alpha_j > (self.C - 1e-8):
+                        new_alpha_j = self.C
+
+                    # if alphas can't be optimized within epsilon, skip this pair
                     if abs(new_alpha_j - alpha_j) < 1e-3 * (alpha_j + new_alpha_j + 1e-3):
                         continue
 
@@ -290,7 +301,7 @@ class SupportVectorMachine:
     def test(cls):
         svm = cls(kernel="linear", max_iteration=200)
         x_train, x_test, y_train, y_test = train_test_split(IRIS_DATASET.data[:100], IRIS_DATASET.target[:100])
-        svm.train(x_train, y_train)
+        print(svm.train(x_train, y_train))
         print(svm.score(x_test, y_test))
 
 
