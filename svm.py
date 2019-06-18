@@ -146,19 +146,21 @@ class SupportVectorMachine:
         iteration = 0
         while iteration < self.max_iteration:
             num_updated_alphas = 0
-            # A cached error value for every non-bound example in the training set
-            # and within the inner loop it chooses an error to approximately
+            # A cached error value for every non-bound example in the training
+            # set and within the inner loop it chooses an error to approximately
             # maximize the step size.
-            self.prediction_error_cache = [self._compute_prediction_error(_x, _y)
+            self.prediction_error_cache = [self._compute_prediction_error(_x,
+                                                                          _y)
                                            for _x, _y in zip(self._x_train,
                                                              self._y_train)]
             for j in range(self.sample_num):
                 if self.if_violate_kkt_conditions(j):
-                    # Given the first ɑ_i, the inner loop looks for a non-boundary that
-                    # maximizes |E_2 - E_1|. If this does not make progress, it starts a
-                    # sequential scan through the non-boundary examples, starting at a
-                    # random position; if this fails too, it starts a sequential scan
-                    # through all examples, also starting at a random position.
+                    # Given the first ɑ_i, the inner loop looks for a
+                    # non-boundary that maximizes |E_2 - E_1|. If this does not
+                    # make progress, it starts a sequential scan through the
+                    # non-boundary examples, starting at a random position; if
+                    # this fails too, it starts a sequential scan through all
+                    # examples, also starting at a random position.
                     if self.prediction_error_cache[j] > 0:
                         i = int(np.argmin(self.prediction_error_cache))
                     else:
@@ -179,11 +181,13 @@ class SupportVectorMachine:
                         upper_bound = min(self.C, alpha_i + alpha_j)
 
                     eta = \
-                        self.kernel_func(x_i, x_i) + self.kernel_func(x_j, x_j) - 2 * \
-                        self.kernel_func(x_i, x_j)
+                        self.kernel_func(x_i, x_i) + \
+                        self.kernel_func(x_j, x_j) - \
+                        2 * self.kernel_func(x_i, x_j)
 
                     if eta > 0:
-                        unclipped_new_alpha_j = alpha_j + y_j * (error_i - error_j) / eta
+                        unclipped_new_alpha_j = \
+                            alpha_j + y_j * (error_i - error_j) / eta
 
                         if unclipped_new_alpha_j > upper_bound:
                             new_alpha_j = upper_bound
@@ -199,20 +203,26 @@ class SupportVectorMachine:
                             y_j * (error_j + self.b) - \
                             y_i * y_j * alpha_i * self.kernel_func(x_i, x_j) - \
                             alpha_j * self.kernel_func(x_i, x_j)
-                        lower_bound_i = alpha_i + y_i * y_j * (alpha_j - lower_bound)
-                        upper_bound_i = alpha_i + y_i * y_j * (alpha_j - upper_bound)
+                        lower_bound_i = alpha_i + y_i * y_j * (alpha_j -
+                                                               lower_bound)
+                        upper_bound_i = alpha_i + y_i * y_j * (alpha_j -
+                                                               upper_bound)
                         lower_bound_obj = \
                             lower_bound_i * fi + \
                             lower_bound * fj + \
-                            0.5 * lower_bound_i**2 * self.kernel_func(x_i, x_i) + \
-                            0.5 * lower_bound**2 * self.kernel_func(x_j, x_j) + \
-                            y_i * y_j * lower_bound * lower_bound_i * self.kernel_func(x_i, x_j)
+                            0.5 * lower_bound_i**2 * self.kernel_func(x_i,
+                                                                      x_i) + \
+                            0.5 * lower_bound**2 * self.kernel_func(x_j, x_j) +\
+                            y_i * y_j * lower_bound * lower_bound_i * \
+                            self.kernel_func(x_i, x_j)
                         upper_bound_obj = \
                             upper_bound_i * fi + \
                             upper_bound * fj + \
-                            0.5 * upper_bound_i**2 * self.kernel_func(x_i, x_i) + \
-                            0.5 * upper_bound**2 * self.kernel_func(x_j, x_j) + \
-                            y_i * y_j * upper_bound * upper_bound_i * self.kernel_func(x_i, x_j)
+                            0.5 * upper_bound_i**2 * self.kernel_func(x_i,
+                                                                      x_i) + \
+                            0.5 * upper_bound**2 * self.kernel_func(x_j, x_j) +\
+                            y_i * y_j * upper_bound * upper_bound_i * \
+                            self.kernel_func(x_i, x_j)
 
                         if lower_bound_obj < upper_bound_obj - 1e-3:
                             new_alpha_j = lower_bound
@@ -226,21 +236,27 @@ class SupportVectorMachine:
                     elif new_alpha_j > (self.C - 1e-8):
                         new_alpha_j = self.C
 
-                    # if alphas can't be optimized within epsilon, skip this pair
-                    if abs(new_alpha_j - alpha_j) < 1e-3 * (alpha_j + new_alpha_j + 1e-3):
+                    # if alphas can't be optimized within epsilon,
+                    # skip this pair
+                    if abs(new_alpha_j - alpha_j) < \
+                            1e-3 * (alpha_j + new_alpha_j + 1e-3):
                         continue
 
                     new_alpha_i = alpha_i + y_i * y_j * (alpha_j - new_alpha_j)
 
                     b_i = \
                         - error_i - \
-                        y_i * (new_alpha_i - alpha_i) * self.kernel_func(x_i, x_i) - \
-                        y_j * (new_alpha_j - alpha_j) * self.kernel_func(x_i, x_j) + \
+                        y_i * (new_alpha_i - alpha_i) * self.kernel_func(x_i,
+                                                                         x_i) -\
+                        y_j * (new_alpha_j - alpha_j) * self.kernel_func(x_i,
+                                                                         x_j) +\
                         self.b
                     b_j = \
                         - error_j - \
-                        y_i * (new_alpha_i - alpha_i) * self.kernel_func(x_i, x_j) - \
-                        y_j * (new_alpha_j - alpha_j) * self.kernel_func(x_j, x_j) + \
+                        y_i * (new_alpha_i - alpha_i) * self.kernel_func(x_i,
+                                                                         x_j) -\
+                        y_j * (new_alpha_j - alpha_j) * self.kernel_func(x_j,
+                                                                         x_j) +\
                         self.b
 
                     if 0 < alpha_i < self.C:
@@ -258,10 +274,10 @@ class SupportVectorMachine:
                     self.alpha[i] = new_alpha_i
                     self.alpha[j] = new_alpha_j
                     self.b = new_b
-                    self.prediction_error_cache[i] = self._compute_prediction_error(x_i,
-                                                                                    y_i)
-                    self.prediction_error_cache[j] = self._compute_prediction_error(x_j,
-                                                                                    y_j)
+                    self.prediction_error_cache[i] = \
+                        self._compute_prediction_error(x_i, y_i)
+                    self.prediction_error_cache[j] = \
+                        self._compute_prediction_error(x_j, y_j)
 
                     num_updated_alphas += 1
 
@@ -284,10 +300,13 @@ class SupportVectorMachine:
         else:
             self.decision_func = self._dual_hypothesis_func
 
-        return "SupportVectorMachine(kernel={0}, C={1}, tol={2}, max_iteration={3})".format(self.kernel,
-                                                                                            self.C,
-                                                                                            self.tol,
-                                                                                            self.max_iteration)
+        return "SupportVectorMachine(" \
+               "kernel={0}, " \
+               "C={1}, tol={2}, " \
+               "max_iteration={3})".format(self.kernel,
+                                           self.C,
+                                           self.tol,
+                                           self.max_iteration)
 
     def predict(self, x):
         prediction = self.decision_func(x)
@@ -300,7 +319,8 @@ class SupportVectorMachine:
     @classmethod
     def test(cls):
         svm = cls(kernel="linear", max_iteration=200)
-        x_train, x_test, y_train, y_test = train_test_split(IRIS_DATASET.data[:100], IRIS_DATASET.target[:100])
+        x_train, x_test, y_train, y_test = train_test_split(
+            IRIS_DATASET.data[:100], IRIS_DATASET.target[:100])
         print(svm.train(x_train, y_train))
         print(svm.score(x_test, y_test))
 
