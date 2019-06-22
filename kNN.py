@@ -125,7 +125,8 @@ class NearerPoint:
         self._distance_2_search_point = distance
 
     def compute_distance_2_search_point(self, search_point, distance_cls):
-        self._distance_2_search_point = distance_cls(search_point, self.point[0])
+        self._distance_2_search_point = distance_cls(search_point,
+                                                     self.point[0])
 
     def __lt__(self, other):
         return self.distance_2_search_point > \
