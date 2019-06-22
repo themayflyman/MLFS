@@ -12,11 +12,11 @@ IRIS_DATASET = IrisDataset()
 
 
 class Perceptron:
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.w = np.ones(1, dtype=np.float32)
         self.b = 0
-        self._learning_rate = 0.1
-        self._max_iteration = 1000
+        self._learning_rate = kwargs.get("learning_rate", 0.1)
+        self._max_iteration = kwargs.get("max_iteration", 1000)
 
     @property
     def learning_rate(self):
