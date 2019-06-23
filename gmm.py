@@ -146,10 +146,10 @@ class GaussianMixtureModel:
 
     def predict(self, observation):
         prediction = dict().fromkeys(range(self.cluster_num))
-        for cluster, mean, covariance in zip(range(self.cluster_num),
-                                             self.mean,
-                                             self.covariance):
-            prediction[cluster] = \
+        for cluster_id, mean, covariance in zip(range(self.cluster_num),
+                                                self.mean,
+                                                self.covariance):
+            prediction[cluster_id] = \
                 multivariate_normal(mean, covariance).pdf(observation) \
                 / np.sum([
                     fraction * multivariate_normal(mean, cov).pdf(observation)
