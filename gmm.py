@@ -25,6 +25,8 @@ class GaussianMixtureModel:
         self.covariance = None
         self.fraction_per_class = None
 
+        self.regularization_of_covariance = None
+
         self.log_likelihood = []
 
     def fit(self, observations, cluster_num):
@@ -33,7 +35,8 @@ class GaussianMixtureModel:
         self.initial_mean = \
             np.random.randint(min(observations[:, 0]),
                               max(observations[:, 0]),
-                              size=(cluster_num, observations.shape[1]))
+                              size=(cluster_num, observations.shape[1]),)
+        self.initial_mean = np.float64(self.initial_mean)
         self.mean = deepcopy(self.initial_mean)
 
         self.initial_covariance = np.zeros((cluster_num,
@@ -48,7 +51,8 @@ class GaussianMixtureModel:
         self.initial_fraction_per_class = np.ones(cluster_num) / cluster_num
         self.fraction_per_class = deepcopy(self.initial_fraction_per_class)
 
-        self.reg_cov = 1e-6 * np.identity(observations.shape[1])
+        self.regularization_of_covariance = 1e-6 * np.identity(observations
+                                                               .shape[1])
 
         for _ in range(self.max_iteration):
             """Expectation Step"""
@@ -57,22 +61,38 @@ class GaussianMixtureModel:
             r = np.zeros((observations.shape[0], self.covariance.shape[0]))
             prob_of_observations_all_over_clusters = np.sum(
                 [fraction * multivariate_normal(mean, cov).pdf(observations)
-                 for fraction, mean, cov in zip(self.fraction_per_class,
-                                                self.mean,
-                                                self.covariance+self.reg_cov)],
+                 for fraction, mean, cov in zip(
+                    self.fraction_per_class,
+                    self.mean,
+                    self.covariance+self.regularization_of_covariance)],
                 axis=0
             )
             for cluster_id in range(self.cluster_num):
                 prob_that_observations_belong_to_the_cluster = \
-                    self.fraction_per_class[cluster_id] * multivariate_normal(self.mean[cluster_id], self.covariance[cluster_id]+self.reg_cov).pdf(observations)
-                r[:, cluster_id] = prob_that_observations_belong_to_the_cluster / prob_of_observations_all_over_clusters
+                    self.fraction_per_class[cluster_id] \
+                    * multivariate_normal(
+                        self.mean[cluster_id],
+                        self.covariance[cluster_id]
+                        + self.regularization_of_covariance)\
+                    .pdf(observations)
+                r[:, cluster_id] = \
+                    prob_that_observations_belong_to_the_cluster \
+                    / prob_of_observations_all_over_clusters
 
             """Maximization Step"""
             self.mean = []
             for cluster_id in range(self.cluster_num):
                 weight = np.sum(r[:, cluster_id], axis=0)
-                self.mean.append(np.sum(observations * r[:, cluster_id].reshape(observations.shape[0], 1), axis=0) / weight)
-                self.covariance[cluster_id] = (np.dot(np.array(r[:, cluster_id].reshape(observations.shape[0], 1) * (observations - self.mean[cluster_id])).T, (observations - self.mean[cluster_id])) / weight) + self.reg_cov
+                self.mean.append(
+                    np.sum(observations * r[:, cluster_id]
+                           .reshape(observations.shape[0], 1), axis=0) / weight)
+                self.covariance[cluster_id] = \
+                    (np.dot(
+                        np.array(r[:, cluster_id]
+                                 .reshape(observations.shape[0], 1) *
+                                 (observations - self.mean[cluster_id])).T,
+                        (observations - self.mean[cluster_id])) / weight) \
+                    + self.regularization_of_covariance
                 self.fraction_per_class[cluster_id] = weight / np.sum(r)
 
             log_likelihood = np.log(
@@ -86,7 +106,8 @@ class GaussianMixtureModel:
             self.log_likelihood.append(log_likelihood)
 
     def plot(self, observations):
-        o, c = np.meshgrid(np.sort(observations[:, 0]), np.sort(observations[:, 1]))
+        o, c = np.meshgrid(np.sort(observations[:, 0]),
+                           np.sort(observations[:, 1]))
 
         plt.figure(figsize=(20, 10))
 
@@ -96,7 +117,11 @@ class GaussianMixtureModel:
         for mean, cov in zip(self.initial_mean, self.initial_covariance):
             plt.contour(np.sort(observations[:, 0]),
                         np.sort(observations[:, 1]),
-                        multivariate_normal(mean, cov+self.reg_cov).pdf(np.array([o.flatten(), c.flatten()]).T).reshape(observations.shape[0], observations.shape[0]),
+                        multivariate_normal(
+                            mean,
+                            cov+self.regularization_of_covariance)
+                        .pdf(np.array([o.flatten(), c.flatten()]).T)
+                        .reshape(observations.shape[0], observations.shape[0]),
                         alpha=0.3)
             plt.scatter(*mean, c='grey', zorder=10, s=100)
 
@@ -106,7 +131,9 @@ class GaussianMixtureModel:
         for mean, cov in zip(self.mean, self.covariance):
             plt.contour(np.sort(observations[:, 0]),
                         np.sort(observations[:, 1]),
-                        multivariate_normal(mean, cov).pdf(np.array([o.flatten(), c.flatten()]).T).reshape(observations.shape[0], observations.shape[0]),
+                        multivariate_normal(mean, cov)
+                        .pdf(np.array([o.flatten(), c.flatten()]).T)
+                        .reshape(observations.shape[0], observations.shape[0]),
                         alpha=0.3)
             plt.scatter(*mean, c='grey', zorder=10, s=100)
 
