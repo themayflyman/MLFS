@@ -145,7 +145,21 @@ class GaussianMixtureModel:
         plt.show()
 
     def predict(self, observation):
-        pass
+        prediction = dict().fromkeys(range(self.cluster_num))
+        for cluster, mean, covariance in zip(range(self.cluster_num),
+                                             self.mean,
+                                             self.covariance):
+            prediction[cluster] = \
+                multivariate_normal(mean, covariance).pdf(observation) \
+                / np.sum([
+                    fraction * multivariate_normal(mean, cov).pdf(observation)
+                    for fraction, mean, cov in zip(
+                        self.fraction_per_class,
+                        self.mean,
+                        self.covariance+self.regularization_of_covariance)],
+                    axis=0
+                )
+        return prediction
 
     @classmethod
     def test(cls):
@@ -158,6 +172,7 @@ class GaussianMixtureModel:
         gmm = cls(max_iteration=60)
         gmm.fit(observations, 3)
         gmm.plot(observations)
+        print(gmm.predict([0.5, 0.5]))
 
 
 if __name__ == "__main__":
