@@ -2,15 +2,13 @@
 # -*- encoding: utf8 -*-
 
 import numpy as np
-from sklearn.model_selection import train_test_split
-from dataset import IrisDataset
-
-
-IRIS_DATASET = IrisDataset()
 
 
 class SupportVectorMachine:
-    """A implementation of SVM (support Vector Machine)
+    """Support Vector Machine.
+
+    A implementation of Support Vector Machine with Sequential Minial
+    Optimization algorithm.
 
     Primal formulation:
             N           N
@@ -26,15 +24,53 @@ class SupportVectorMachine:
         s.t., 0 ≤ ɑ_i ≤ C and ∑ a_i * y_i = 0, i = 1,......,N
                              i=1
 
+    Parameters
+    ----------
+    max_iteration : int (default=200)
+        Maximum number of iterations for the algorithm.
+
+    C : float, optional (default=1.0)
+        Penalty parameter C of the error term.
+
+    tol : float, optional (default=1e-3)
+          Tolerance for stopping criteria.
+
+    kernel : string, optional (default='gaussian')
+        kernel function for the model
+
+    Examples
+    --------
+    >>>from dataset import IrisDataset
+    >>>from sklearn.model_selection import train_test_split
+    >>>IRIS_DATASET = IrisDataset()
+    >>>x_train, x_test, y_train, y_test = \
+    ...        train_test_split(IRIS_DATASET.data[:100],
+    ...                         IRIS_DATASET.target[:100])
+    >>>svm = SupportVectorMachine(kernel='linear')
+    >>>svm.train(x_train, y_train)
+    SupportVectorMachine(kernel=linear, C=1.0, tol=0.001, max_iteration=200)
+    >>>svm.classify(x_test[0])
+    1
+    >>>svm.score(x_test, y_test)
+    0.96
+
+    Notes
+    -----
+
+    References
+    ----------
+    李航 《统计学习方法》
+    CS229 Simplified SMO algorithm (http://cs229.stanford.edu/materials/smo.pdf)
+    John C. Platt Fast Training of Support Vector Machines using Sequential Minial Optimization (http://www.cs.utsa.edu/~bylander/cs6243/smo-book.pdf)
     """
     def __init__(self, **kwargs):
-        self._max_iteration = kwargs.get("max_iteration", 200)
+        self.max_iteration = kwargs.get("max_iteration", 200)
         # C is essentially a regularisation parameter, which controls the
         # trade-off between achieving a low error on the training data and
         # minimising the norm of the weights
-        self._C = kwargs.get("C", 1)
+        self.C = kwargs.get("C", 1.0)
         # numerical tolerance
-        self._tol = kwargs.get('tol', 1e-3)
+        self.tol = kwargs.get('tol', 1e-3)
         self.kernel = kwargs.get("kernel", "gaussian")
         if self.kernel == "linear":
             self.kernel_func = self._linear_kernel_func
@@ -63,30 +99,6 @@ class SupportVectorMachine:
 
         self.decision_func = None
 
-    @property
-    def max_iteration(self):
-        return self._max_iteration
-
-    @max_iteration.setter
-    def max_iteration(self, val):
-        self._max_iteration = val
-
-    @property
-    def C(self):
-        return self._C
-
-    @C.setter
-    def C(self, val):
-        self._C = val
-
-    @property
-    def tol(self):
-        return self._tol
-
-    @tol.setter
-    def tol(self, val):
-        self._tol = val
-
     @staticmethod
     def _linear_kernel_func(x, z):
         return np.dot(x, z.T)
@@ -108,19 +120,18 @@ class SupportVectorMachine:
         0 < a_i < C     =>     y_i * g(x_i) = 1
         a_i = C         =>     y_i * g(x_i) <= 1
 
-        Where y_i * g(x_i) - 1 = y_i * g(x_i) - y_i^2 = y_i * (g(x_i) - y_i) = y_i * E_i
-        Let R_i = y_i * E_i
-        Hence, to summarize, the KKT conditions implies:
+        Parameters
+        ----------
+        index: int
 
-        a_i < C and R_i < 0 - tolerance
-        a_i > 0 and R_i > 0 + tolerance
-
-        :param index: index of a sample
-        :return: a boolean value of if a given sample violates KKT conditions
+        Returns
+        -------
+        v: boolean
+            if a given sample violates KKT conditions
         """
-        R = self.prediction_error_cache[index] * self._y_train[index]
-        if (self.alpha[index] < self.C and R < -self.tol) or \
-                (self.alpha[index] > 0 and R > self.tol):
+        r = self.prediction_error_cache[index] * self._y_train[index]
+        if (self.alpha[index] < self.C and r < -self.tol) or \
+                (self.alpha[index] > 0 and r > self.tol):
             return True
         else:
             return False
@@ -308,19 +319,25 @@ class SupportVectorMachine:
                                            self.tol,
                                            self.max_iteration)
 
-    def predict(self, x):
+    def classify(self, x):
         prediction = self.decision_func(x)
         return 1 if prediction > 0 else 0
 
     def score(self, x_test, y_test):
-        return sum([1 if self.predict(_x) == _y else 0
+        return sum([1 if self.classify(_x) == _y else 0
                     for _x, _y in zip(x_test, y_test)]) / len(x_test)
 
     @classmethod
     def test(cls):
+        from dataset import IrisDataset
+        from sklearn.model_selection import train_test_split
+
+        iris_dataset = IrisDataset()
+        x_train, x_test, y_train, y_test = \
+            train_test_split(iris_dataset.data[:100],
+                             iris_dataset.target[:100])
+
         svm = cls(kernel="linear", max_iteration=200)
-        x_train, x_test, y_train, y_test = train_test_split(
-            IRIS_DATASET.data[:100], IRIS_DATASET.target[:100])
         print(svm.train(x_train, y_train))
         print(svm.score(x_test, y_test))
 
