@@ -40,18 +40,18 @@ class SupportVectorMachine:
 
     Examples
     --------
-    >>>from dataset import IrisDataset
-    >>>from sklearn.model_selection import train_test_split
-    >>>IRIS_DATASET = IrisDataset()
-    >>>x_train, x_test, y_train, y_test = \
+    >>> from dataset import IrisDataset
+    >>> from sklearn.model_selection import train_test_split
+    >>> IRIS_DATASET = IrisDataset()
+    >>> x_train, x_test, y_train, y_test = \
     ...        train_test_split(IRIS_DATASET.data[:100],
     ...                         IRIS_DATASET.target[:100])
-    >>>svm = SupportVectorMachine(kernel='linear')
-    >>>svm.train(x_train, y_train)
+    >>> svm = SupportVectorMachine(kernel='linear')
+    >>> svm.train(x_train, y_train)
     SupportVectorMachine(kernel=linear, C=1.0, tol=0.001, max_iteration=200)
-    >>>svm.classify(x_test[0])
+    >>> svm.classify(x_test[0])
     1
-    >>>svm.score(x_test, y_test)
+    >>> svm.score(x_test, y_test)
     0.96
 
     Notes
