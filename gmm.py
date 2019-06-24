@@ -147,8 +147,6 @@ class GaussianMixtureModel:
 
         for _ in range(self.max_iteration):
             # Expectation Step
-            # initialize the container of the probability that each observation
-            # belongs to each cluster
             membership_weights = np.zeros((observations.shape[0],
                                            self.covariance.shape[0]))
             prob_of_observations_all_over_clusters = np.sum(
