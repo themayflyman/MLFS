@@ -154,16 +154,17 @@ class SupportVectorMachine:
                    ) + self.b - y
 
     def sequential_minial_optimize(self):
+        # A cached error value for every non-bound example in the training
+        # set and within the inner loop it chooses an error to approximately
+        # maximize the step size.
+        self.prediction_error_cache = [self._compute_prediction_error(_x,
+                                                                      _y)
+                                       for _x, _y in zip(self._x_train,
+                                                         self._y_train)]
+
         iteration = 0
         while iteration < self.max_iteration:
             num_updated_alphas = 0
-            # A cached error value for every non-bound example in the training
-            # set and within the inner loop it chooses an error to approximately
-            # maximize the step size.
-            self.prediction_error_cache = [self._compute_prediction_error(_x,
-                                                                          _y)
-                                           for _x, _y in zip(self._x_train,
-                                                             self._y_train)]
             for j in range(self.sample_num):
                 if self.if_violate_kkt_conditions(j):
                     # Given the first ɑ_i, the inner loop looks for a
