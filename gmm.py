@@ -198,45 +198,6 @@ class GaussianMixtureModel:
             )
             self.log_likelihood.append(log_likelihood)
 
-    def plot(self, observations):
-        o_x, o_y = np.meshgrid(np.sort(observations[:, 0]),
-                               np.sort(observations[:, 1]))
-
-        plt.figure(figsize=(20, 10))
-
-        plt.subplot(121)
-        plt.title("Initial State")
-        plt.scatter(observations[:, 0], observations[:, 1])
-        for mean, cov in zip(self.initial_mean, self.initial_covariance):
-            plt.contour(np.sort(observations[:, 0]),
-                        np.sort(observations[:, 1]),
-                        multivariate_normal(
-                            mean,
-                            cov+self.regularization_of_covariance)
-                        .pdf(np.array([o_x.flatten(), o_y.flatten()]).T)
-                        .reshape(observations.shape[0], observations.shape[0]),
-                        alpha=0.3)
-            plt.scatter(*mean, c='grey', zorder=10, s=100)
-
-        plt.subplot(122)
-        plt.title("Final State")
-        plt.scatter(observations[:, 0], observations[:, 1])
-        for mean, cov in zip(self.mean, self.covariance):
-            plt.contour(np.sort(observations[:, 0]),
-                        np.sort(observations[:, 1]),
-                        multivariate_normal(mean, cov)
-                        .pdf(np.array([o_x.flatten(), o_y.flatten()]).T)
-                        .reshape(observations.shape[0], observations.shape[0]),
-                        alpha=0.3)
-            plt.scatter(*mean, c='grey', zorder=10, s=100)
-
-        plt.figure(figsize=(10, 10))
-        plt.subplot(111)
-        plt.title('Log-Likelihood')
-        plt.plot(range(0, self.max_iteration, 1), self.log_likelihood)
-
-        plt.show()
-
     def predict(self, observation):
         """Probability estimates.
 
@@ -276,8 +237,55 @@ class GaussianMixtureModel:
                               np.random.RandomState(0).randn(2, 2))
         gmm = cls()
         gmm.fit(observations, 3)
-        gmm.plot(observations)
+        o_x, o_y = np.meshgrid(np.sort(observations[:, 0]),
+                               np.sort(observations[:, 1]))
+        plot_gmm(gmm, observations, o_x, o_y)
         print(gmm.predict([0.5, 0.5]))
+
+
+def plot_gmm(gmm, observations, o_x, o_y):
+    """Plot how training data are classified as different clusters after they're
+       input to a Gaussian Mixture Model and trained.
+
+    Parameters
+    ----------
+    gmm : GaussianMixtureModel
+    observations : array-like
+    """
+    plt.figure(figsize=(20, 10))
+
+    plt.subplot(121)
+    plt.title("Initial State")
+    plt.scatter(observations[:, 0], observations[:, 1])
+    for mean, cov in zip(gmm.initial_mean, gmm.initial_covariance):
+        plt.contour(np.sort(observations[:, 0]),
+                    np.sort(observations[:, 1]),
+                    multivariate_normal(
+                        mean,
+                        cov+gmm.regularization_of_covariance)
+                    .pdf(np.array([o_x.flatten(), o_y.flatten()]).T)
+                    .reshape(observations.shape[0], observations.shape[0]),
+                    alpha=0.3)
+        plt.scatter(*mean, c='grey', zorder=10, s=100)
+
+    plt.subplot(122)
+    plt.title("Final State")
+    plt.scatter(observations[:, 0], observations[:, 1])
+    for mean, cov in zip(gmm.mean, gmm.covariance):
+        plt.contour(np.sort(observations[:, 0]),
+                    np.sort(observations[:, 1]),
+                    multivariate_normal(mean, cov)
+                    .pdf(np.array([o_x.flatten(), o_y.flatten()]).T)
+                    .reshape(observations.shape[0], observations.shape[0]),
+                    alpha=0.3)
+        plt.scatter(*mean, c='grey', zorder=10, s=100)
+
+    plt.figure(figsize=(10, 10))
+    plt.subplot(111)
+    plt.title('Log-Likelihood')
+    plt.plot(range(0, gmm.max_iteration, 1), gmm.log_likelihood)
+
+    plt.show()
 
 
 if __name__ == "__main__":
