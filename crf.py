@@ -200,6 +200,27 @@ class LinearChainCRFTagger:
             t.append(STOP)
         return sent_train, tag_train
 
+    def _compute_transition_feature_expectation_wrt_empirical_distribution(self, sent_train, tag_train):
+        from itertools import chain
+        empirical_prob = [sum(1 if sent == expected_sent and tag == expected_tag
+                              else 0
+                              for expected_sent in sent_train
+                              for expected_tag in tag_train) / len(sent_train)
+                          for sent, tag in zip(sent_train, tag_train)]
+        return sum([
+            ep * sum([
+                tff(tag[i-1], tag[i], sent[i])
+                for i in range(1, len(sent))
+                for tff in chain.from_iterable(
+                    chain.from_iterable(
+                    self.transition_feature_func))
+            ])
+            for sent, tag, ep in zip(sent_train, tag_train, empirical_prob)
+        ])
+
+    def _compute_trainsition_feature_expectation_wrt_model_params(self, sent_train, tag_train):
+        pass
+
     def fit(self, sent_train, tag_train, algorithm='iis'):
         text_train, tag_train = self.pre_process(sent_train, tag_train)
 
